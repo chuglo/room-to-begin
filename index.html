@@ -1,0 +1,1026 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f3efe6">
+  <title>Room to Begin — Guided decluttering</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f3efe6;
+      --surface: #fffdf8;
+      --ink: #263029;
+      --muted: #687169;
+      --line: #d8d6ca;
+      --moss: #3f674f;
+      --moss-dark: #2d4e3a;
+      --moss-soft: #dfe9df;
+      --clay: #9a6047;
+      --focus: #1d5e3c;
+      --shadow: 0 18px 45px rgb(38 48 41 / 0.09);
+      --radius: 24px;
+      --content: 680px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { min-height: 100%; background: var(--paper); }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      min-height: 100dvh;
+      color: var(--ink);
+      background:
+        linear-gradient(rgb(38 48 41 / 0.025) 1px, transparent 1px),
+        var(--paper);
+      background-size: 100% 32px;
+      font-family: "Avenir Next", Avenir, "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    button, input, select { font: inherit; }
+
+    button { -webkit-tap-highlight-color: transparent; }
+
+    button:focus-visible,
+    input:focus-visible,
+    select:focus-visible {
+      outline: 3px solid color-mix(in srgb, var(--focus) 58%, transparent);
+      outline-offset: 3px;
+    }
+
+    .app-shell {
+      width: min(100%, var(--content));
+      min-height: 100vh;
+      min-height: 100dvh;
+      margin: 0 auto;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      padding: max(18px, env(safe-area-inset-top)) 18px max(24px, env(safe-area-inset-bottom));
+    }
+
+    header {
+      min-height: 58px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .wordmark {
+      min-height: 44px;
+      border: 0;
+      padding: 8px 0;
+      color: var(--ink);
+      background: transparent;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+      cursor: pointer;
+    }
+
+    .quiet-button {
+      min-height: 44px;
+      border: 0;
+      border-radius: 999px;
+      padding: 0 14px;
+      color: var(--muted);
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .quiet-button:hover { background: rgb(255 253 248 / 0.7); color: var(--ink); }
+
+    main {
+      display: grid;
+      align-items: center;
+      padding: clamp(20px, 6vh, 64px) 0;
+    }
+
+    .screen { width: 100%; animation: enter 260ms ease-out both; }
+
+    @keyframes enter {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .eyebrow {
+      margin: 0 0 10px;
+      color: var(--moss);
+      font-size: 0.78rem;
+      font-weight: 760;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+    }
+
+    h1, h2 {
+      margin: 0;
+      max-width: 18ch;
+      font-family: Georgia, "Times New Roman", serif;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      line-height: 1.07;
+      text-wrap: balance;
+    }
+
+    h1 { font-size: clamp(2.55rem, 11vw, 4.9rem); }
+    h2 { font-size: clamp(2.15rem, 8vw, 3.8rem); }
+
+    .lede {
+      max-width: 42ch;
+      margin: 22px 0 0;
+      color: var(--muted);
+      font-size: clamp(1.05rem, 3.5vw, 1.2rem);
+      line-height: 1.58;
+      text-wrap: pretty;
+    }
+
+    .promise {
+      margin: 34px 0;
+      padding: 18px 0 18px 20px;
+      border-left: 1px solid var(--moss);
+      color: var(--ink);
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 1.1rem;
+      line-height: 1.5;
+    }
+
+    .primary-button,
+    .secondary-button,
+    .choice-button {
+      width: 100%;
+      min-height: 58px;
+      border-radius: 16px;
+      padding: 14px 18px;
+      cursor: pointer;
+      transition: transform 120ms ease, background-color 120ms ease, border-color 120ms ease;
+    }
+
+    .primary-button {
+      border: 1px solid var(--moss);
+      color: #fffdf8;
+      background: var(--moss);
+      font-weight: 760;
+      box-shadow: 0 8px 20px rgb(63 103 79 / 0.18);
+    }
+
+    .primary-button:hover { background: var(--moss-dark); border-color: var(--moss-dark); }
+    .primary-button:active, .secondary-button:active, .choice-button:active { transform: scale(0.99); }
+
+    .secondary-button {
+      border: 1px solid var(--line);
+      color: var(--ink);
+      background: var(--surface);
+      font-weight: 700;
+    }
+
+    .secondary-button:hover { border-color: #a8afa7; }
+
+    .button-stack { display: grid; gap: 12px; margin-top: 30px; }
+
+    .form-card,
+    .task-card,
+    .support-card {
+      margin-top: 30px;
+      border: 1px solid rgb(216 214 202 / 0.88);
+      border-radius: var(--radius);
+      background: rgb(255 253 248 / 0.92);
+      box-shadow: var(--shadow);
+    }
+
+    .form-card { padding: clamp(20px, 5vw, 32px); }
+
+    fieldset { margin: 0; padding: 0; border: 0; }
+    fieldset + fieldset { margin-top: 28px; }
+
+    legend {
+      margin-bottom: 12px;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 1.18rem;
+      font-weight: 700;
+    }
+
+    .option-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+
+    .radio-option { position: relative; }
+    .radio-option input { position: absolute; opacity: 0; pointer-events: none; }
+    .radio-option label {
+      min-height: 54px;
+      display: grid;
+      place-items: center;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      color: var(--ink);
+      background: #fffefa;
+      text-align: center;
+      cursor: pointer;
+    }
+    .radio-option input:checked + label {
+      border-color: var(--moss);
+      background: var(--moss-soft);
+      box-shadow: inset 0 0 0 1px var(--moss);
+    }
+    .radio-option input:focus-visible + label {
+      outline: 3px solid color-mix(in srgb, var(--focus) 58%, transparent);
+      outline-offset: 3px;
+    }
+
+    .task-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 16px;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .progress-track {
+      height: 5px;
+      flex: 1;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #deddd5;
+    }
+
+    .progress-fill {
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+      background: var(--moss);
+      transition: width 280ms ease;
+    }
+
+    .task-card { overflow: hidden; }
+
+    .task-copy { padding: clamp(22px, 6vw, 38px); }
+
+    .task-number {
+      margin: 0 0 16px;
+      color: var(--moss);
+      font-size: 0.85rem;
+      font-weight: 760;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .instruction {
+      margin: 20px 0 0;
+      color: var(--ink);
+      font-size: clamp(1.05rem, 3.4vw, 1.18rem);
+      line-height: 1.62;
+      text-wrap: pretty;
+    }
+
+    .destination {
+      margin: 24px 0 0;
+      padding: 16px 18px;
+      border-radius: 14px;
+      color: var(--ink);
+      background: var(--moss-soft);
+      line-height: 1.5;
+    }
+
+    .destination strong { display: block; margin-bottom: 4px; font-size: 0.85rem; letter-spacing: 0.03em; }
+
+    .timer-panel {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 22px;
+      padding: 22px clamp(22px, 6vw, 38px);
+      border-top: 1px solid var(--line);
+      background: #faf8f1;
+    }
+
+    .timer-label {
+      margin: 0 0 3px;
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 760;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+    }
+
+    .timer-display {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(2.25rem, 9vw, 3.35rem);
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+      letter-spacing: -0.035em;
+      line-height: 1;
+    }
+
+    .timer-status {
+      min-height: 1.4em;
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.4;
+    }
+
+    .timer-panel.finished .timer-display,
+    .timer-panel.finished .timer-status { color: var(--clay); }
+
+    .timer-controls {
+      min-width: 148px;
+      display: grid;
+      gap: 7px;
+    }
+
+    .timer-controls .secondary-button { min-height: 50px; }
+    .timer-controls .quiet-button { width: 100%; }
+
+    .task-actions {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      padding: 18px;
+      border-top: 1px solid var(--line);
+      background: #faf8f1;
+    }
+
+    .task-actions .primary-button { min-width: 180px; }
+    .task-actions .quiet-button { padding-inline: 18px; }
+
+    .choice-list { display: grid; gap: 10px; margin-top: 26px; }
+
+    .choice-button {
+      border: 1px solid var(--line);
+      color: var(--ink);
+      background: var(--surface);
+      font-weight: 700;
+      text-align: left;
+    }
+
+    .choice-button:hover { border-color: var(--moss); background: var(--moss-soft); }
+
+    .support-card { padding: 22px; }
+    .support-card p { margin: 0; color: var(--muted); line-height: 1.55; }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: max(18px, env(safe-area-inset-bottom));
+      z-index: 20;
+      width: min(calc(100% - 36px), 440px);
+      padding: 13px 16px;
+      border-radius: 12px;
+      color: #fff;
+      background: var(--ink);
+      box-shadow: var(--shadow);
+      text-align: center;
+      transform: translate(-50%, 24px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 180ms ease, transform 180ms ease;
+    }
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+    dialog {
+      width: min(calc(100% - 28px), 520px);
+      border: 0;
+      border-radius: 24px;
+      padding: 0;
+      color: var(--ink);
+      background: var(--surface);
+      box-shadow: 0 28px 90px rgb(25 31 27 / 0.25);
+    }
+    dialog::backdrop { background: rgb(38 48 41 / 0.42); backdrop-filter: blur(2px); }
+    .dialog-content { padding: 28px; }
+    .dialog-content h3 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 1.7rem; }
+    .dialog-content > p { margin: 12px 0 0; color: var(--muted); line-height: 1.55; }
+    .dialog-actions { display: grid; gap: 10px; margin-top: 22px; }
+
+    .completion-mark {
+      width: 62px;
+      height: 62px;
+      display: grid;
+      place-items: center;
+      margin-bottom: 24px;
+      border-radius: 50%;
+      color: var(--moss-dark);
+      background: var(--moss-soft);
+      font-size: 1.8rem;
+      font-weight: 800;
+    }
+
+    .summary-list {
+      margin: 28px 0 0;
+      padding: 0;
+      list-style: none;
+      border-top: 1px solid var(--line);
+    }
+    .summary-list li {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 15px 0;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+    }
+    .summary-list strong { color: var(--ink); font-weight: 700; text-align: right; }
+
+    .prototype-note {
+      margin: 24px 0 0;
+      color: var(--muted);
+      font-size: 0.82rem;
+      line-height: 1.5;
+    }
+
+    @media (max-width: 520px) {
+      main { align-items: start; padding-top: 34px; }
+      .option-grid { grid-template-columns: 1fr 1fr; }
+      .timer-panel { grid-template-columns: 1fr; gap: 18px; }
+      .timer-controls { grid-template-columns: 1fr auto; min-width: 0; }
+      .timer-controls .quiet-button { width: auto; padding-inline: 16px; }
+      .task-actions { grid-template-columns: 1fr; }
+      .task-actions .primary-button { order: -1; min-width: 0; }
+      .task-actions .quiet-button { width: 100%; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header>
+      <button class="wordmark" id="homeButton" type="button" aria-label="Room to Begin home">Room to Begin</button>
+      <button class="quiet-button" id="resetButton" type="button" hidden>Start over</button>
+    </header>
+    <main id="app" aria-live="polite"></main>
+  </div>
+
+  <dialog id="supportDialog" aria-labelledby="supportTitle">
+    <div class="dialog-content">
+      <h3 id="supportTitle">Let’s make this smaller.</h3>
+      <p>You don’t need to finish the room. Choose what is getting in the way right now.</p>
+      <div class="dialog-actions">
+        <button class="choice-button" type="button" data-support="too-much">There’s too much here</button>
+        <button class="choice-button" type="button" data-support="decision">I can’t decide about an item</button>
+        <button class="choice-button" type="button" data-support="distracted">I got distracted</button>
+        <button class="choice-button" type="button" data-support="tired">I need to stop</button>
+        <button class="quiet-button" type="button" id="closeSupport">Go back</button>
+      </div>
+    </div>
+  </dialog>
+
+  <div class="toast" id="toast" role="status"></div>
+
+  <script>
+    (() => {
+      'use strict';
+
+      function createTimer(durationSeconds) {
+        const duration = Math.max(1, Math.floor(Number(durationSeconds) || 1));
+        return { duration, remaining: duration, status: 'idle', endsAt: null };
+      }
+
+      function getRemaining(timer, now = Date.now()) {
+        if (timer.status !== 'running') return Math.max(0, timer.remaining);
+        return Math.max(0, Math.ceil((timer.endsAt - now) / 1000));
+      }
+
+      function startTimer(timer, now = Date.now()) {
+        const remaining = timer.remaining > 0 ? timer.remaining : timer.duration;
+        return { ...timer, remaining, status: 'running', endsAt: now + remaining * 1000 };
+      }
+
+      function syncTimer(timer, now = Date.now()) {
+        const remaining = getRemaining(timer, now);
+        if (timer.status === 'running' && remaining === 0) {
+          return { ...timer, remaining: 0, status: 'finished', endsAt: null };
+        }
+        return { ...timer, remaining };
+      }
+
+      function pauseTimer(timer, now = Date.now()) {
+        return { ...timer, remaining: getRemaining(timer, now), status: 'paused', endsAt: null };
+      }
+
+      function formatTime(totalSeconds) {
+        const safeSeconds = Math.max(0, Math.floor(Number(totalSeconds) || 0));
+        const minutes = Math.floor(safeSeconds / 60);
+        const seconds = safeSeconds % 60;
+        return `${minutes}:${String(seconds).padStart(2, '0')}`;
+      }
+
+      window.TimerCore = { createTimer, startTimer, pauseTimer, syncTimer, getRemaining, formatTime };
+    })();
+  </script>
+  <script>
+    (() => {
+      'use strict';
+
+      const STORAGE_KEY = 'roomToBegin.prototype.v1';
+      const app = document.getElementById('app');
+      const resetButton = document.getElementById('resetButton');
+      const homeButton = document.getElementById('homeButton');
+      const supportDialog = document.getElementById('supportDialog');
+      const closeSupport = document.getElementById('closeSupport');
+      const toast = document.getElementById('toast');
+
+      const roomLabels = {
+        kitchen: 'Kitchen', living: 'Living room', bedroom: 'Bedroom', bathroom: 'Bathroom', other: 'Another room'
+      };
+
+      const energyLabels = { low: 'Low', steady: 'Steady', good: 'Good' };
+
+      const steps = [
+        {
+          id: 'trash',
+          title: 'Begin with what’s easy.',
+          instruction: 'Collect only obvious trash, recycling, empty packaging, expired items, and broken things you definitely won’t repair. Don’t organize yet.',
+          destination: 'Trash and recycling go directly to your normal bins.'
+        },
+        {
+          id: 'relocate',
+          title: 'Gather things that belong elsewhere.',
+          instruction: 'Put anything that belongs in another room into one basket or box. Stay in this room for now so you don’t get pulled into another task.',
+          destination: 'Everything goes into one relocation basket—never several little piles.'
+        },
+        {
+          id: 'empty-relocate',
+          title: 'Empty the relocation basket.',
+          instruction: 'Take each item to the room where it belongs and put it in its existing home. If an item has no established home, leave it in the basket.',
+          destination: 'Existing home or back in the basket. Don’t create a new pile.'
+        },
+        {
+          id: 'surface',
+          title: 'Clear one small surface.',
+          instruction: 'Choose one tabletop, counter, or shelf—not the whole room. Put back what you use, set aside what can be donated, and place anything without a home in the basket.',
+          destination: 'Use three destinations only: keep here, donation bag, or no-home basket.'
+        },
+        {
+          id: 'donations',
+          title: 'Move donations toward the exit.',
+          instruction: 'Close the donation bag and move it out of this room now. This keeps “donate” from becoming another permanent category of clutter.',
+          destination: 'Put it directly in your car, or beside the exit you use for errands.'
+        },
+        {
+          id: 'no-home',
+          title: 'Resolve five no-home items.',
+          instruction: 'Take only five items from the basket. Give each one a specific home near where you use it, or decide it should leave the house. Don’t buy organizers yet.',
+          destination: 'A real, specific home—or out of the house.'
+        },
+        {
+          id: 'contained',
+          title: 'Reset one contained space.',
+          instruction: 'Choose one small drawer, cabinet shelf, or bin. Empty only that space, then return only what you use and want stored there.',
+          destination: 'Sort the rest into trash, recycling, donation, or the relocation basket. Fully reset this area before moving on.'
+        },
+        {
+          id: 'close-loop',
+          title: 'Close the loop.',
+          instruction: 'Take out new trash and recycling, stage donations to leave, and put away everything in the relocation basket. Finish without leaving sorting piles behind.',
+          destination: 'Every item ends in its home, an outside bin, or the staged donation bag.'
+        }
+      ];
+
+      const defaultState = {
+        screen: 'welcome',
+        room: 'living',
+        minutes: '20',
+        energy: 'steady',
+        stepIndex: 0,
+        completed: [],
+        loops: 0,
+        startedAt: null,
+        safeStop: false,
+        timer: null
+      };
+
+      let state = loadState();
+      let toastTimer;
+      let timerTicker;
+
+      function loadState() {
+        try {
+          const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+          return saved ? { ...defaultState, ...saved } : { ...defaultState };
+        } catch (_) {
+          return { ...defaultState };
+        }
+      }
+
+      function saveState() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      }
+
+      function escapeHtml(value) {
+        return String(value).replace(/[&<>'"]/g, char => ({
+          '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+        })[char]);
+      }
+
+      function showToast(message) {
+        toast.textContent = message;
+        toast.classList.add('show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => toast.classList.remove('show'), 2400);
+      }
+
+      function timerMinutes() {
+        if (state.energy === 'low') return 5;
+        if (state.energy === 'good') return 12;
+        return 10;
+      }
+
+      function createStepTimer(stepId) {
+        return { ...TimerCore.createTimer(timerMinutes() * 60), stepId };
+      }
+
+      function ensureStepTimer(stepId) {
+        if (!state.timer || state.timer.stepId !== stepId) {
+          state.timer = createStepTimer(stepId);
+          saveState();
+        } else {
+          state.timer = { ...TimerCore.syncTimer(state.timer), stepId };
+          saveState();
+        }
+      }
+
+      function timerStatusText(status) {
+        return {
+          idle: 'Ready when you are.',
+          running: 'Take your time. Stay with this one step.',
+          paused: 'Paused. Your place is saved.',
+          finished: 'Time is up. Finish the item in your hands, then press Done.'
+        }[status] || 'Ready when you are.';
+      }
+
+      function updateTimerUI(announceExpiry = true) {
+        const panel = document.getElementById('timerPanel');
+        if (!panel || !state.timer) return;
+
+        const previousStatus = state.timer.status;
+        state.timer = { ...TimerCore.syncTimer(state.timer), stepId: state.timer.stepId };
+        const display = document.getElementById('timerDisplay');
+        const status = document.getElementById('timerStatus');
+        const toggle = document.getElementById('timerToggle');
+
+        display.textContent = TimerCore.formatTime(state.timer.remaining);
+        status.textContent = timerStatusText(state.timer.status);
+        panel.classList.toggle('finished', state.timer.status === 'finished');
+        toggle.textContent = {
+          idle: 'Start timer', running: 'Pause timer', paused: 'Resume timer', finished: 'Start again'
+        }[state.timer.status];
+        toggle.setAttribute('aria-label', toggle.textContent);
+
+        if (announceExpiry && previousStatus === 'running' && state.timer.status === 'finished') {
+          showToast('Time is up. Finish the item in your hands, then press Done.');
+          clearInterval(timerTicker);
+        }
+        saveState();
+      }
+
+      function startTimerTicker() {
+        clearInterval(timerTicker);
+        if (state.timer?.status === 'running') {
+          timerTicker = setInterval(() => updateTimerUI(true), 1000);
+        }
+      }
+
+      function toggleStepTimer() {
+        state.timer = { ...TimerCore.syncTimer(state.timer), stepId: state.timer.stepId };
+        if (state.timer.status === 'running') {
+          state.timer = { ...TimerCore.pauseTimer(state.timer), stepId: state.timer.stepId };
+        } else {
+          state.timer = { ...TimerCore.startTimer(state.timer), stepId: state.timer.stepId };
+        }
+        saveState();
+        updateTimerUI(false);
+        startTimerTicker();
+      }
+
+      function resetStepTimer() {
+        const step = steps[state.stepIndex] || steps[steps.length - 1];
+        state.timer = createStepTimer(step.id);
+        saveState();
+        updateTimerUI(false);
+        startTimerTicker();
+        showToast('Timer reset. Start whenever you’re ready.');
+      }
+
+      function pauseTimerForSupport() {
+        if (state.timer?.status === 'running') {
+          state.timer = { ...TimerCore.pauseTimer(state.timer), stepId: state.timer.stepId };
+          saveState();
+          updateTimerUI(false);
+          startTimerTicker();
+        }
+        supportDialog.showModal();
+      }
+
+      function render() {
+        clearInterval(timerTicker);
+        resetButton.hidden = state.screen === 'welcome';
+        const renderers = {
+          welcome: renderWelcome,
+          setup: renderSetup,
+          task: renderTask,
+          basket: renderBasketCheck,
+          support: renderSupportAnswer,
+          complete: renderComplete
+        };
+        (renderers[state.screen] || renderWelcome)();
+        window.scrollTo({ top: 0, behavior: 'instant' });
+      }
+
+      function renderWelcome() {
+        const hasSession = state.startedAt && ['task', 'basket', 'support'].includes(state.screen);
+        app.innerHTML = `
+          <section class="screen" aria-labelledby="welcome-title">
+            <p class="eyebrow">Guided decluttering</p>
+            <h1 id="welcome-title">One small step. Then the next.</h1>
+            <p class="lede">You don’t need a burst of motivation or a perfect plan. We’ll work through one manageable action at a time—and we won’t leave you with a bigger mess.</p>
+            <p class="promise">Every step includes exactly where things should go.</p>
+            <div class="button-stack">
+              <button class="primary-button" type="button" id="beginButton">${hasSession ? 'Continue my session' : 'Begin a small session'}</button>
+            </div>
+            <p class="prototype-note">Working prototype · Your session is stored only in this browser.</p>
+          </section>`;
+        document.getElementById('beginButton').addEventListener('click', () => {
+          state.screen = hasSession ? 'task' : 'setup';
+          saveState();
+          render();
+        });
+      }
+
+      function renderSetup() {
+        app.innerHTML = `
+          <section class="screen" aria-labelledby="setup-title">
+            <p class="eyebrow">Before we begin</p>
+            <h2 id="setup-title">Make the session fit today.</h2>
+            <p class="lede">There is no ideal pace. Choose what feels realistic right now.</p>
+            <form class="form-card" id="setupForm">
+              ${radioGroup('room', 'Which room?', [
+                ['kitchen', 'Kitchen'], ['living', 'Living room'], ['bedroom', 'Bedroom'], ['bathroom', 'Bathroom'], ['other', 'Another room']
+              ], state.room)}
+              ${radioGroup('minutes', 'How much time do you have?', [
+                ['10', '10 minutes'], ['20', '20 minutes'], ['30', '30 minutes'], ['open', 'No deadline']
+              ], state.minutes)}
+              ${radioGroup('energy', 'How is your energy?', [
+                ['low', 'Low'], ['steady', 'Steady'], ['good', 'Good']
+              ], state.energy)}
+              <div class="button-stack">
+                <button class="primary-button" type="submit">Give me the first step</button>
+              </div>
+            </form>
+          </section>`;
+
+        document.getElementById('setupForm').addEventListener('submit', event => {
+          event.preventDefault();
+          const data = new FormData(event.currentTarget);
+          state.room = data.get('room');
+          state.minutes = data.get('minutes');
+          state.energy = data.get('energy');
+          state.stepIndex = 0;
+          state.completed = [];
+          state.loops = 0;
+          state.startedAt = new Date().toISOString();
+          state.safeStop = false;
+          state.timer = null;
+          state.screen = 'task';
+          saveState();
+          render();
+        });
+      }
+
+      function radioGroup(name, legend, options, selected) {
+        return `
+          <fieldset>
+            <legend>${legend}</legend>
+            <div class="option-grid">
+              ${options.map(([value, label]) => `
+                <div class="radio-option">
+                  <input type="radio" id="${name}-${value}" name="${name}" value="${value}" ${value === selected ? 'checked' : ''} required>
+                  <label for="${name}-${value}">${label}</label>
+                </div>`).join('')}
+            </div>
+          </fieldset>`;
+      }
+
+      function renderTask() {
+        const step = steps[state.stepIndex] || steps[steps.length - 1];
+        const progress = Math.max(6, Math.round(((state.stepIndex + 1) / steps.length) * 100));
+        const room = roomLabels[state.room] || roomLabels.other;
+        const minutes = timerMinutes();
+        ensureStepTimer(step.id);
+        app.innerHTML = `
+          <section class="screen" aria-labelledby="task-title">
+            <div class="task-meta">
+              <span>${escapeHtml(room)}</span>
+              <div class="progress-track" aria-label="Session progress"><span class="progress-fill" style="width: ${progress}%"></span></div>
+              <span>${minutes} min</span>
+            </div>
+            <article class="task-card">
+              <div class="task-copy">
+                <p class="task-number">Your next small step</p>
+                <h2 id="task-title">${step.title}</h2>
+                <p class="instruction">${step.instruction} Stop when your ${minutes}-minute timer ends.</p>
+                <div class="destination"><strong>Where things go</strong>${step.destination}</div>
+              </div>
+              <div class="timer-panel ${state.timer.status === 'finished' ? 'finished' : ''}" id="timerPanel">
+                <div>
+                  <p class="timer-label">Step timer</p>
+                  <p class="timer-display" id="timerDisplay" role="timer" aria-label="Time remaining">${TimerCore.formatTime(state.timer.remaining)}</p>
+                  <p class="timer-status" id="timerStatus" aria-live="polite">${timerStatusText(state.timer.status)}</p>
+                </div>
+                <div class="timer-controls">
+                  <button class="secondary-button" type="button" id="timerToggle">${{
+                    idle: 'Start timer', running: 'Pause timer', paused: 'Resume timer', finished: 'Start again'
+                  }[state.timer.status]}</button>
+                  <button class="quiet-button" type="button" id="timerReset">Reset</button>
+                </div>
+              </div>
+              <div class="task-actions">
+                <button class="quiet-button" type="button" id="stuckButton">I’m stuck</button>
+                <button class="primary-button" type="button" id="doneButton">Done</button>
+              </div>
+            </article>
+            <div class="button-stack">
+              <button class="quiet-button" type="button" id="stopButton">I need to stop for today</button>
+            </div>
+          </section>`;
+
+        document.getElementById('doneButton').addEventListener('click', completeCurrentStep);
+        document.getElementById('stuckButton').addEventListener('click', pauseTimerForSupport);
+        document.getElementById('stopButton').addEventListener('click', requestSafeStop);
+        document.getElementById('timerToggle').addEventListener('click', toggleStepTimer);
+        document.getElementById('timerReset').addEventListener('click', resetStepTimer);
+        updateTimerUI(false);
+        startTimerTicker();
+      }
+
+      function completeCurrentStep() {
+        const current = steps[state.stepIndex];
+        clearInterval(timerTicker);
+        state.timer = null;
+        if (current && !state.completed.includes(current.id)) state.completed.push(current.id);
+
+        if (current.id === 'no-home') {
+          state.screen = 'basket';
+        } else if (current.id === 'close-loop') {
+          state.screen = 'complete';
+        } else {
+          state.stepIndex = Math.min(state.stepIndex + 1, steps.length - 1);
+          state.screen = 'task';
+        }
+        saveState();
+        render();
+      }
+
+      function renderBasketCheck() {
+        app.innerHTML = `
+          <section class="screen" aria-labelledby="basket-title">
+            <p class="eyebrow">Quick check</p>
+            <h2 id="basket-title">How is the no-home basket?</h2>
+            <p class="lede">Five decisions are enough for one round. You’re allowed to keep this small.</p>
+            <div class="choice-list">
+              <button class="choice-button" type="button" id="basketEmpty">The basket is empty</button>
+              <button class="choice-button" type="button" id="basketMore">More items remain</button>
+            </div>
+          </section>`;
+        document.getElementById('basketEmpty').addEventListener('click', () => advanceFromBasket(false));
+        document.getElementById('basketMore').addEventListener('click', () => advanceFromBasket(true));
+      }
+
+      function advanceFromBasket(moreRemain) {
+        if (moreRemain && state.loops < 2) {
+          state.loops += 1;
+          state.screen = 'task';
+          showToast('Just five more. No need to rush.');
+        } else {
+          state.stepIndex += 1;
+          state.screen = 'task';
+          if (moreRemain) showToast('That is enough basket decisions for today.');
+        }
+        saveState();
+        render();
+      }
+
+      function requestSafeStop() {
+        const closeIndex = steps.findIndex(step => step.id === 'close-loop');
+        if (state.stepIndex === closeIndex) {
+          showToast('Finish this closing step, then you can stop cleanly.');
+          return;
+        }
+        state.safeStop = true;
+        state.stepIndex = closeIndex;
+        state.timer = null;
+        state.screen = 'task';
+        saveState();
+        showToast('One closing step, so no piles are left behind.');
+        render();
+      }
+
+      function renderSupportAnswer() {
+        const answers = {
+          'too-much': {
+            title: 'Shrink the boundary.',
+            text: 'Choose an area no larger than a bath towel. Ignore everything outside that boundary until this one step is done.'
+          },
+          decision: {
+            title: 'Set the hard decision aside.',
+            text: 'Place that one item in the no-home basket. Return to obvious decisions; we’ll resolve the basket in a separate step.'
+          },
+          distracted: {
+            title: 'Return to the last object.',
+            text: 'You don’t need to restart. Put the item in your hands into its destination, then handle only the item immediately beside it.'
+          },
+          tired: {
+            title: 'Let’s stop without leaving a mess.',
+            text: 'We’ll skip ahead to a short closing step: trash out, donations staged, and the relocation basket emptied.'
+          }
+        };
+        const answer = answers[state.supportType] || answers['too-much'];
+        app.innerHTML = `
+          <section class="screen" aria-labelledby="support-answer-title">
+            <p class="eyebrow">You’re not behind</p>
+            <h2 id="support-answer-title">${answer.title}</h2>
+            <div class="support-card"><p>${answer.text}</p></div>
+            <div class="button-stack">
+              <button class="primary-button" type="button" id="supportContinue">${state.supportType === 'tired' ? 'Close the session safely' : 'Return to my step'}</button>
+            </div>
+          </section>`;
+        document.getElementById('supportContinue').addEventListener('click', () => {
+          if (state.supportType === 'tired') requestSafeStop();
+          else {
+            state.screen = 'task';
+            saveState();
+            render();
+          }
+        });
+      }
+
+      function renderComplete() {
+        const room = roomLabels[state.room] || roomLabels.other;
+        const stepsDone = state.completed.length;
+        app.innerHTML = `
+          <section class="screen" aria-labelledby="complete-title">
+            <div class="completion-mark" aria-hidden="true">✓</div>
+            <p class="eyebrow">Session complete</p>
+            <h2 id="complete-title">The room is lighter—and there are no sorting piles waiting for you.</h2>
+            <p class="lede">That is a real finish. Take a break and let the progress be enough for today.</p>
+            <ul class="summary-list">
+              <li><span>Room</span><strong>${escapeHtml(room)}</strong></li>
+              <li><span>Energy</span><strong>${escapeHtml(energyLabels[state.energy] || 'Steady')}</strong></li>
+              <li><span>Steps completed</span><strong>${stepsDone}</strong></li>
+            </ul>
+            <div class="button-stack">
+              <button class="primary-button" type="button" id="newSession">Begin another session</button>
+            </div>
+          </section>`;
+        document.getElementById('newSession').addEventListener('click', resetSession);
+      }
+
+      function resetSession() {
+        const preserved = { room: state.room, minutes: state.minutes, energy: state.energy };
+        state = { ...defaultState, ...preserved, screen: 'setup' };
+        saveState();
+        render();
+      }
+
+      document.querySelectorAll('[data-support]').forEach(button => {
+        button.addEventListener('click', () => {
+          state.supportType = button.dataset.support;
+          state.screen = 'support';
+          supportDialog.close();
+          saveState();
+          render();
+        });
+      });
+
+      closeSupport.addEventListener('click', () => supportDialog.close());
+      supportDialog.addEventListener('click', event => {
+        if (event.target === supportDialog) supportDialog.close();
+      });
+
+      resetButton.addEventListener('click', () => {
+        if (window.confirm('Start over? Your current session progress will be cleared.')) resetSession();
+      });
+
+      homeButton.addEventListener('click', () => {
+        if (state.startedAt && ['task', 'basket', 'support'].includes(state.screen)) {
+          state.screen = 'task';
+          showToast('Your current session is still here.');
+        } else {
+          state.screen = 'welcome';
+        }
+        saveState();
+        render();
+      });
+
+      render();
+    })();
+  </script>
+</body>
+</html>
