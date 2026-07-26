@@ -30,12 +30,15 @@ People are more likely to complete a decluttering session when the product:
 - One-active-session, resume-first home
 - Room-only **Start now**, plus an optional tailored room/time/energy setup
 - One-step-at-a-time guided flow
+- Optional per-step timers: Start-now has no default; users can set, change, or remove any whole-minute duration from 1–120
+- Tailored 10/20/30-minute choices remain editable suggestions rather than fixed limits
 - Foreground countdown alarm with **Stop timer** and **Add 2 minutes**
 - Timer persistence across reloads and automatic pause when asking for help
 - Explicit destinations for trash, recycling, donations, relocation, and no-home items
 - Adaptive “I’m stuck” guidance
 - Bounded repetition for unresolved items
 - Safe-stop flow that closes active piles
+- Explicit **Leave session** confirmation that cancels the active session without adding a History entry
 - Active-time history, lifetime totals, room summaries, and a non-streak calendar
 - Installable, offline static app shell
 - Responsive, accessible controls and reduced-motion support
@@ -58,7 +61,7 @@ node test-runner.mjs
 
 Static production files are `index.html`, `manifest.webmanifest`, `sw.js`, and the three PNGs in `icons/`. GitHub Pages can serve them as-is.
 
-To recover from an unwanted in-progress session, use **End this session safely** on Home and finish the bounded closing step. Browser storage can also be cleared through browser/site settings; doing so permanently removes the local active session, custom rooms, and history.
+Use **Leave session** in the header to discard the current session and return Home; the confirmation explains that the step, timer, and in-progress active time are cleared and no History entry is added. Use **End this session safely** on Home or **I need to stop for today** during guided work when you want the bounded closing step and a normal History record. Clearing browser/site storage permanently removes the active session, custom rooms, and history.
 
 ## First usability test
 

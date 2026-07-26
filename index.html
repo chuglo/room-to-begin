@@ -405,6 +405,10 @@
     .dialog-content h3 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 1.7rem; }
     .dialog-content > p { margin: 12px 0 0; color: var(--muted); line-height: 1.55; }
     .dialog-actions { display: grid; gap: 10px; margin-top: 22px; }
+    .timer-form label { display: block; margin-top: 20px; font-weight: 750; }
+    .timer-form input { width: 100%; min-height: 56px; margin-top: 8px; border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; color: var(--ink); background: var(--surface); font-size: 1.15rem; }
+    .field-error { margin: 8px 0 0; color: var(--clay); line-height: 1.45; }
+    .field-error[hidden] { display: none; }
 
     .completion-mark {
       width: 62px;
@@ -490,10 +494,37 @@
   <div class="app-shell">
     <header>
       <button class="wordmark" id="homeButton" type="button" aria-label="Room to Begin home">Room to Begin</button>
+      <button class="quiet-button" id="leaveButton" type="button" hidden>Leave session</button>
       <button class="quiet-button" id="resetButton" type="button" hidden>Start over</button>
     </header>
     <main id="app" aria-live="polite"></main>
   </div>
+
+  <dialog id="timerDialog" aria-labelledby="timerTitle" aria-describedby="timerDescription">
+    <form class="dialog-content timer-form" id="timerForm" novalidate>
+      <h3 id="timerTitle">Set a timer</h3>
+      <p id="timerDescription">Choose any whole number from 1 to 120 minutes. Changing the timer keeps you on this same step.</p>
+      <label for="timerMinutes">Minutes</label>
+      <input id="timerMinutes" name="minutes" type="number" inputmode="numeric" min="1" max="120" step="1" required>
+      <p class="field-error" id="timerError" role="alert" hidden>Enter a whole number from 1 to 120.</p>
+      <div class="dialog-actions">
+        <button class="primary-button" type="submit">Save timer</button>
+        <button class="secondary-button" type="button" id="removeTimer">Remove timer</button>
+        <button class="quiet-button" type="button" id="closeTimer">Never mind</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="leaveDialog" aria-labelledby="leaveTitle" aria-describedby="leaveDescription">
+    <div class="dialog-content">
+      <h3 id="leaveTitle">Leave this session?</h3>
+      <p id="leaveDescription">Your current step and timer will be cleared. This session won’t be added to History.</p>
+      <div class="dialog-actions">
+        <button class="primary-button" type="button" id="keepSession">Keep going</button>
+        <button class="secondary-button" type="button" id="confirmLeave">Cancel session and return home</button>
+      </div>
+    </div>
+  </dialog>
 
   <dialog id="supportDialog" aria-labelledby="supportTitle">
     <div class="dialog-content">
@@ -596,14 +627,43 @@
           id:idAt(now), source:source === 'tailored' ? 'tailored' : 'start-now', room:room ? { id:String(room.id), label:normalizeRoomLabel(room.label) } : null,
           minutes:source === 'tailored' ? String(minutes || '20') : null, energy:source === 'tailored' ? String(energy || 'steady') : null,
           stepIndex:0, completedStepIds:[], loops:0, startedAt:new Date(now).toISOString(), activeMs:0, activeSince:null,
-          safeStop:false, screen:'task', supportType:null, timer:null
+          safeStop:false, screen:'task', supportType:null, timer:null, timerDismissedStepId:null
         };
       }
       function sessionTimerSeconds(session) {
-        if(session?.source!=='tailored') return 600;
+        if(session?.source!=='tailored') return null;
         return ['10','20','30'].includes(session.minutes) ? Number(session.minutes)*60 : null;
       }
-      const timerInstruction = session => sessionTimerSeconds(session)===null ? '' : ` Stop when your ${sessionTimerSeconds(session)/60}-minute timer ends.`;
+      function parseTimerMinutes(value) {
+        const raw=String(value ?? '').trim();
+        if(!/^\d+$/.test(raw)) return null;
+        const minutes=Number(raw);
+        return minutes>=1&&minutes<=120 ? minutes : null;
+      }
+      function changeSessionTimer(session, value, now=Date.now()) {
+        const minutes=parseTimerMinutes(value);
+        if(minutes===null) return { ...session };
+        const previous=session.timer;
+        let timer=createTimer(minutes*60);
+        if(previous?.status==='running') timer=startTimer(timer,now);
+        else if(previous?.status==='paused') timer={...timer,status:'paused'};
+        if(previous?.stepId) timer.stepId=previous.stepId;
+        return { ...session, timer, timerDismissedStepId:null };
+      }
+      const removeSessionTimer = (session, stepId=null) => ({ ...session, timer:null, timerDismissedStepId:typeof stepId==='string'?stepId:null });
+      function prepareStepTimer(session, stepId, now=Date.now()) {
+        let next={...session};
+        if(next.timer?.stepId && next.timer.stepId!==stepId) next.timer=null;
+        if(next.timer) return { ...next, timer:{...syncTimer(next.timer,now),stepId}, timerDismissedStepId:null };
+        if(next.timerDismissedStepId===stepId) return next;
+        const seconds=sessionTimerSeconds(next);
+        if(seconds===null) return { ...next, timer:null };
+        return { ...next, timer:{...createTimer(seconds),stepId}, timerDismissedStepId:null };
+      }
+      const timerInstruction = session => {
+        const seconds=session?.timer?.duration ?? (session?.timerDismissedStepId ? null : sessionTimerSeconds(session));
+        return seconds===null ? '' : ` Stop when your ${Math.ceil(seconds/60)}-minute timer ends.`;
+      };
       const isActiveScreen = screen => ['task','basket','support'].includes(screen);
       function migrateV1State(old) {
         const root = createDefaultRoot();
@@ -652,7 +712,8 @@
           completedStepIds:stringArray(value.completedStepIds),loops:Math.max(0,Math.min(2,Math.floor(Number(value.loops)||0))),
           startedAt:value.startedAt,activeMs:activeMs??0,activeSince,
           safeStop:Boolean(value.safeStop),screen:value.screen,
-          supportType:typeof value.supportType==='string'?value.supportType:null,timer:normalizeTimer(value.timer)
+          supportType:typeof value.supportType==='string'?value.supportType:null,timer:normalizeTimer(value.timer),
+          timerDismissedStepId:typeof value.timerDismissedStepId==='string'?value.timerDismissedStepId:null
         };
       }
       function normalizeHistoryEntry(value) {
@@ -747,8 +808,11 @@
         const entry={id:s.id,startedAt:s.startedAt,endedAt:new Date(now).toISOString(),activeMs:s.activeMs,room:s.room,source:s.source,completedStepIds:[...s.completedStepIds],ending:s.safeStop?'safe-stop':'completed'};
         return { ...root, route:'complete', activeSession:null, history:[...root.history,entry], lastCompletion:entry };
       }
+      function cancelSession(root) {
+        return { ...root, route:'home', activeSession:null };
+      }
       window.TimerCore = { createTimer, startTimer, pauseTimer, syncTimer, getRemaining, formatTime, acknowledgeTimer, extendTimer };
-      window.RoomToBeginTestAPI = { createDefaultRoot,migrateV1State,parseRoot,parseRootResult,selectRecovery,createStorageAdapter,createSession,createCustomRoom,sessionTimerSeconds,timerInstruction,isActiveScreen,normalizeRoomLabel,escapeHtml,spaceLabel,getHomeModel,showBottomNav,startActiveClock,pauseActiveClock,resumeActiveClock,getActiveMs,finalizeActiveClock,historyTotals,groupHistoryByRoom,groupHistoryByDay,filterHistory,localDateKey,reconcileRestoredTimer,applyTimerAction,transition,closeSession };
+      window.RoomToBeginTestAPI = { createDefaultRoot,migrateV1State,parseRoot,parseRootResult,selectRecovery,createStorageAdapter,createSession,createCustomRoom,sessionTimerSeconds,parseTimerMinutes,changeSessionTimer,removeSessionTimer,prepareStepTimer,timerInstruction,isActiveScreen,normalizeRoomLabel,escapeHtml,spaceLabel,getHomeModel,showBottomNav,startActiveClock,pauseActiveClock,resumeActiveClock,getActiveMs,finalizeActiveClock,historyTotals,groupHistoryByRoom,groupHistoryByDay,filterHistory,localDateKey,reconcileRestoredTimer,applyTimerAction,transition,closeSession,cancelSession };
       window.__ROOM_V2__ = true;
     })();
   </script>
@@ -1265,8 +1329,8 @@
       'use strict';
       const A=window.RoomToBeginTestAPI,T=window.TimerCore;
       const V1='roomToBegin.prototype.v1',V2='roomToBegin.v2';
-      const app=document.getElementById('app'),homeButton=document.getElementById('homeButton'),resetButton=document.getElementById('resetButton');
-      const supportDialog=document.getElementById('supportDialog'),alarmDialog=document.getElementById('alarmDialog'),toast=document.getElementById('toast'),storageWarning=document.getElementById('storageWarning');
+      const app=document.getElementById('app'),homeButton=document.getElementById('homeButton'),leaveButton=document.getElementById('leaveButton'),resetButton=document.getElementById('resetButton');
+      const timerDialog=document.getElementById('timerDialog'),leaveDialog=document.getElementById('leaveDialog'),supportDialog=document.getElementById('supportDialog'),alarmDialog=document.getElementById('alarmDialog'),toast=document.getElementById('toast'),storageWarning=document.getElementById('storageWarning');
       const rooms=[['kitchen','Kitchen'],['living','Living room'],['bedroom','Bedroom'],['bathroom','Bathroom']];
       const steps=[
         {id:'trash',title:'Begin with what’s easy.',instruction:'Collect only obvious trash, recycling, empty packaging, expired items, and broken things you definitely won’t repair. Don’t organize yet.',destination:'Trash and recycling go directly to your normal bins.'},
@@ -1293,8 +1357,9 @@
       function setSession(value){root.activeSession=value;save();}
       function toastMessage(message){toast.textContent=message;toast.classList.add('show');clearTimeout(toaster);toaster=setTimeout(()=>toast.classList.remove('show'),2400);}
       const activeScreen=s=>s&&A.isActiveScreen(s.screen);
+      const activityBlocked=()=>alarmDialog.open||timerDialog.open||leaveDialog.open;
       function pauseActivity(now=Date.now()){if(session())setSession(A.pauseActiveClock(session(),now));}
-      function resumeActivity(now=Date.now()){if(session()&&activeScreen(session())&&!document.hidden&&!alarmDialog.open)setSession(A.resumeActiveClock(session(),now));}
+      function resumeActivity(now=Date.now()){if(session()&&activeScreen(session())&&!document.hidden&&!activityBlocked())setSession(A.resumeActiveClock(session(),now));}
       function nav(route){root.route=route;save();render();}
       function navHtml(current){return `<nav class="bottom-nav" aria-label="Primary"><button class="quiet-button" type="button" data-route="home" ${current==='home'?'aria-current="page"':''}>Home</button><button class="quiet-button" type="button" data-route="history" ${current==='history'?'aria-current="page"':''}>History</button></nav>`;}
       function bindNav(){document.querySelectorAll('[data-route]').forEach(b=>b.addEventListener('click',()=>nav(b.dataset.route)));}
@@ -1309,6 +1374,7 @@
         else renderHome();
         homeButton.disabled=Boolean(session()&&route==='session'&&activeScreen(session()));
         homeButton.setAttribute('aria-disabled',String(homeButton.disabled));
+        leaveButton.hidden=!session();
         focusRouteHeading();
         window.scrollTo({top:0,behavior:'instant'});
       }
@@ -1337,16 +1403,16 @@
         app.innerHTML=`<section class="screen" aria-labelledby="setup-title"><p class="eyebrow">Choose a small session</p><h2 id="setup-title">Make the session fit today.</h2><form class="form-card" id="setupForm">${radio('room','Which room?',[...rooms,['none','Skip']])}${radio('minutes','How much time?',[['10','10 minutes'],['20','20 minutes'],['30','30 minutes'],['open','No deadline']])}${radio('energy','How is your energy?',[['low','Low'],['steady','Steady'],['good','Good']])}<div class="button-stack"><button class="primary-button">Give me the first step</button></div></form>${navHtml('')}</section>`;
         document.getElementById('setupForm').onsubmit=e=>{e.preventDefault();const d=new FormData(e.currentTarget),id=d.get('room'),found=rooms.find(r=>r[0]===id);begin('tailored',found?{id:found[0],label:found[1]}:null,d.get('minutes'),d.get('energy'));};bindNav();
       }
-      function ensureTimer(){let s=session(),step=steps[s.stepIndex],seconds=A.sessionTimerSeconds(s);if(seconds===null){if(s.timer)setSession({...s,timer:null});return;}if(!s.timer||s.timer.stepId!==step.id)s={...s,timer:{...T.createTimer(seconds),stepId:step.id}};else s={...s,timer:{...T.syncTimer(s.timer),stepId:step.id}};setSession(s);}
+      function ensureTimer(){const s=session(),step=steps[s.stepIndex];setSession(A.prepareStepTimer(s,step.id));}
       function timerText(status){return {idle:'Ready when you are.',running:'Stay with this one step.',paused:'Paused. Your place is saved.',finished:'Time is up. Finish the item in your hands.'}[status];}
       function renderSession(timerFocusId=null){
         const s=session();if(!s){root.route='home';save();return render();}
         if(s.screen==='basket')return renderBasket();
         if(s.screen==='support')return renderSupport();
         ensureTimer();resumeActivity();const current=session(),step=steps[current.stepIndex],timer=current.timer;
-        const timerHtml=timer?`<div class="timer-panel ${timer.status==='finished'?'finished':''}" id="timerPanel"><div><p class="timer-label">Step timer</p><p class="timer-display" id="timerDisplay" role="timer">${T.formatTime(timer.remaining)}</p><p class="timer-status" id="timerStatus" aria-live="polite">${timerText(timer.status)}</p></div><div class="timer-controls"><button class="secondary-button" id="timerToggle">${timer.status==='running'?'Pause timer':timer.status==='paused'?'Resume timer':timer.status==='finished'?'Start again':'Start timer'}</button><button class="quiet-button" id="timerReset">Reset</button></div></div>`:'';
+        const timerHtml=timer?`<div class="timer-panel ${timer.status==='finished'?'finished':''}" id="timerPanel"><div><p class="timer-label">Step timer</p><p class="timer-display" id="timerDisplay" role="timer">${T.formatTime(timer.remaining)}</p><p class="timer-status" id="timerStatus" aria-live="polite">${timerText(timer.status)}</p></div><div class="timer-controls"><button class="secondary-button" id="timerToggle">${timer.status==='running'?'Pause timer':timer.status==='paused'?'Resume timer':timer.status==='finished'?'Start again':'Start timer'}</button><button class="quiet-button" id="timerChange">Change time</button><button class="quiet-button" id="timerReset">Reset</button></div></div>`:`<div class="timer-panel" id="timerPanel"><div><p class="timer-label">Step timer</p><p class="timer-status">No timer set. Add one if a small time boundary would help.</p></div><div class="timer-controls"><button class="secondary-button" id="timerChange">Set a timer</button></div></div>`;
         app.innerHTML=`<section class="screen" aria-labelledby="task-title"><div class="meta-pills"><span>${A.escapeHtml(A.spaceLabel(current.room))}</span><span>${current.stepIndex===7?'Closing step':'One step at a time'}</span></div><article class="task-card"><div class="task-copy"><p class="task-number">Your next small step</p><h2 id="task-title">${step.title}</h2><p class="instruction">${step.instruction}${A.timerInstruction(current)}</p><div class="destination"><strong>Where things go</strong>${step.destination}</div></div>${timerHtml}<div class="task-actions"><button class="quiet-button" id="stuckButton">I’m stuck</button><button class="primary-button" id="doneButton">Done</button></div></article><div class="button-stack"><button class="quiet-button" id="stopButton">I need to stop for today</button></div></section>`;
-        document.getElementById('timerToggle')?.addEventListener('click',toggleTimer);document.getElementById('timerReset')?.addEventListener('click',resetTimer);document.getElementById('stuckButton').onclick=openSupport;document.getElementById('doneButton').onclick=done;document.getElementById('stopButton').onclick=()=>{setSession(A.transition(session(),{type:'safe-stop'}));render();};updateTimer(false);startTicker();if(timerFocusId)restoreTimerFocus(timerFocusId);else focusRouteHeading();
+        document.getElementById('timerToggle')?.addEventListener('click',toggleTimer);document.getElementById('timerChange').addEventListener('click',openTimerEditor);document.getElementById('timerReset')?.addEventListener('click',resetTimer);document.getElementById('stuckButton').onclick=openSupport;document.getElementById('doneButton').onclick=done;document.getElementById('stopButton').onclick=()=>{setSession(A.transition(session(),{type:'safe-stop'}));render();};updateTimer(false);startTicker();if(timerFocusId)restoreTimerFocus(timerFocusId);else focusRouteHeading();
       }
       function updateTimer(ring){
         if(!session()?.timer)return;const before=session().timer.status,synced=T.syncTimer(session().timer);setSession({...session(),timer:{...synced,stepId:session().timer.stepId}});
@@ -1355,12 +1421,28 @@
       }
       function startTicker(){clearInterval(ticker);if(session()?.timer?.status==='running')ticker=setInterval(()=>updateTimer(true),500);}
       function toggleTimer(){let s=session(),timer=T.syncTimer(s.timer);primeAudio();timer=timer.status==='running'?T.pauseTimer(timer):T.startTimer(timer);setSession({...s,timer:{...timer,stepId:s.timer.stepId}});renderSession('timerToggle');}
-      function resetTimer(){silenceAlarm();let s=session();setSession({...s,timer:{...T.createTimer(A.sessionTimerSeconds(s)),stepId:steps[s.stepIndex].id}});renderSession('timerReset');}
+      function resetTimer(){silenceAlarm();let s=session();if(!s.timer)return;setSession({...s,timer:{...T.createTimer(s.timer.duration),stepId:steps[s.stepIndex].id}});renderSession('timerReset');}
+      function openTimerEditor(){if(!session())return;clearInterval(ticker);pauseActivity();const timer=session().timer,input=document.getElementById('timerMinutes'),error=document.getElementById('timerError');input.value=timer?String(Math.max(1,Math.ceil(T.getRemaining(timer)/60))):'';input.removeAttribute('aria-invalid');error.hidden=true;document.getElementById('removeTimer').hidden=!timer;timerDialog.showModal();input.focus();input.select();}
+      function resumeAfterBlockingDialog(focusId){updateTimer(true);if(alarmDialog.open)return;resumeActivity();startTicker();document.getElementById(focusId)?.focus();}
+      function closeTimerEditor(){if(timerDialog.open)timerDialog.close();resumeAfterBlockingDialog('timerChange');}
+      document.getElementById('timerForm').onsubmit=event=>{event.preventDefault();const input=document.getElementById('timerMinutes'),minutes=A.parseTimerMinutes(input.value),error=document.getElementById('timerError');if(minutes===null){input.setAttribute('aria-invalid','true');error.hidden=false;input.focus();return;}let s=A.changeSessionTimer(session(),minutes);s.timer={...s.timer,stepId:steps[s.stepIndex].id};setSession(s);timerDialog.close();renderSession('timerChange');};
+      document.getElementById('removeTimer').onclick=()=>{const s=session();setSession(A.removeSessionTimer(s,steps[s.stepIndex].id));timerDialog.close();renderSession('timerChange');};
+      document.getElementById('closeTimer').onclick=closeTimerEditor;
+      timerDialog.addEventListener('cancel',event=>{event.preventDefault();closeTimerEditor();});
+      timerDialog.addEventListener('click',event=>{if(event.target===timerDialog)closeTimerEditor();});
+      function openLeave(){if(!session())return;clearInterval(ticker);pauseActivity();leaveDialog.showModal();}
+      function keepSession(){if(leaveDialog.open)leaveDialog.close();resumeAfterBlockingDialog('leaveButton');}
+      function confirmLeave(){silenceAlarm();clearInterval(ticker);if(supportDialog.open)supportDialog.close();if(leaveDialog.open)leaveDialog.close();root=A.cancelSession(root);save();render();}
       function primeAudio(){try{audioContext ||= new (window.AudioContext||window.webkitAudioContext)();audioContext.resume();}catch(_){}}
       function tone(){try{if(!audioContext)return;const o=audioContext.createOscillator(),g=audioContext.createGain();o.frequency.value=660;g.gain.setValueAtTime(.0001,audioContext.currentTime);g.gain.exponentialRampToValueAtTime(.12,audioContext.currentTime+.02);g.gain.exponentialRampToValueAtTime(.0001,audioContext.currentTime+.28);o.connect(g).connect(audioContext.destination);o.start();o.stop(audioContext.currentTime+.3);}catch(_){}}
       function startAlarm(){pauseActivity();clearInterval(alarmInterval);alarmInterval=null;if(!alarmDialog.open)alarmDialog.showModal();primeAudio();tone();alarmInterval=setInterval(tone,900);try{navigator.vibrate?.([250,150,250]);}catch(_){}}
       function silenceAlarm(){clearInterval(alarmInterval);alarmInterval=null;try{navigator.vibrate?.(0);}catch(_){}if(alarmDialog.open)alarmDialog.close();}
       alarmDialog.addEventListener('cancel',event=>event.preventDefault());
+      leaveButton.onclick=openLeave;
+      document.getElementById('keepSession').onclick=keepSession;
+      document.getElementById('confirmLeave').onclick=confirmLeave;
+      leaveDialog.addEventListener('cancel',event=>{event.preventDefault();keepSession();});
+      leaveDialog.addEventListener('click',event=>{if(event.target===leaveDialog)keepSession();});
       document.getElementById('stopAlarm').onclick=()=>{silenceAlarm();setSession(A.resumeActiveClock(A.applyTimerAction(session(),'acknowledge')));renderSession();};
       document.getElementById('extendAlarm').onclick=()=>{silenceAlarm();setSession(A.resumeActiveClock(A.applyTimerAction(session(),'extend')));renderSession();};
       function returnFromSupport(){if(session()?.screen==='support')setSession(A.transition(session(),{type:'support-return'}));if(supportDialog.open)supportDialog.close();renderSession();}
@@ -1378,7 +1460,7 @@
         document.querySelectorAll('[data-filter-room]').forEach(b=>b.onclick=()=>{filters={roomId:b.dataset.filterRoom};renderHistory();});document.querySelectorAll('[data-date]').forEach(b=>b.onclick=()=>{filters={date:b.dataset.date};renderHistory();});document.getElementById('clearFilter')?.addEventListener('click',()=>{filters={};renderHistory();});document.getElementById('prevMonth')?.addEventListener('click',()=>{historyMonth=new Date(historyMonth.getFullYear(),historyMonth.getMonth()-1,1);renderHistory();});document.getElementById('nextMonth')?.addEventListener('click',()=>{historyMonth=new Date(historyMonth.getFullYear(),historyMonth.getMonth()+1,1);renderHistory();});bindNav();focusRouteHeading();
       }
       homeButton.onclick=()=>{if(!homeButton.disabled)nav('home');};
-      document.addEventListener('visibilitychange',()=>{if(!session())return;if(document.hidden){pauseActivity();silenceAlarm();}else{const s=session();if(s.timer)s.timer=A.reconcileRestoredTimer(s.timer);setSession(root.route==='session'&&activeScreen(s)?A.resumeActiveClock(s):A.pauseActiveClock(s));render();}});
+      document.addEventListener('visibilitychange',()=>{if(!session())return;if(document.hidden){pauseActivity();silenceAlarm();}else{const s=session();if(s.timer)s.timer=A.reconcileRestoredTimer(s.timer);setSession(root.route==='session'&&activeScreen(s)&&!activityBlocked()?A.resumeActiveClock(s):A.pauseActiveClock(s));render();}});
       window.addEventListener('pagehide',()=>{pauseActivity();silenceAlarm();});
       if(session()?.timer)root.activeSession={...session(),timer:A.reconcileRestoredTimer(session().timer)};
       save();render();

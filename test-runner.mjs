@@ -38,7 +38,7 @@ test('session creation supports fast, skipped, tailored, and safe custom rooms',
   assert.equal(A.escapeHtml('<img onerror="x">'), '&lt;img onerror=&quot;x&quot;&gt;');
 });
 
-test('tailored 10/20/30 drive optional timer deadlines and open has no forced timer', () => {
+test('tailored 10/20/30 suggest timers while Start now and open have no default', () => {
   for (const minutes of ['10', '20', '30']) {
     const session = A.createSession({ source: 'tailored', room, minutes, energy: 'low', now });
     assert.equal(A.sessionTimerSeconds(session), Number(minutes) * 60);
@@ -49,7 +49,47 @@ test('tailored 10/20/30 drive optional timer deadlines and open has no forced ti
   const open = A.createSession({ source: 'tailored', room, minutes: 'open', energy: 'good', now });
   assert.equal(A.sessionTimerSeconds(open), null);
   assert.equal(A.timerInstruction(open), '');
-  assert.equal(A.sessionTimerSeconds(A.createSession({ source: 'start-now', room, now })), 600);
+  assert.equal(A.sessionTimerSeconds(A.createSession({ source: 'start-now', room, now })), null);
+});
+
+test('custom timers accept 1–120 whole minutes without advancing the task', () => {
+  for (const value of ['1', '2', '120']) assert.equal(A.parseTimerMinutes(value), Number(value));
+  for (const value of ['', '0', '121', '2.5', '-2', 'abc']) assert.equal(A.parseTimerMinutes(value), null);
+  const session = A.createSession({ source:'start-now', room, now });
+  const two = A.changeSessionTimer(session, '2', now);
+  assert.equal(two.timer.duration, 120);
+  assert.equal(two.timer.remaining, 120);
+  assert.equal(two.timer.status, 'idle');
+  assert.equal(two.stepIndex, session.stepIndex);
+  assert.equal(A.timerInstruction(two), ' Stop when your 2-minute timer ends.');
+
+  const running = { ...two, timer:{ ...T.startTimer(two.timer, now), stepId:'trash' } };
+  const changedRunning = A.changeSessionTimer(running, '3', now + 5000);
+  assert.equal(changedRunning.timer.duration, 180);
+  assert.equal(changedRunning.timer.status, 'running');
+  assert.equal(changedRunning.timer.endsAt, now + 185000);
+  assert.equal(changedRunning.timer.stepId, 'trash');
+  assert.equal(changedRunning.stepIndex, running.stepIndex);
+
+  const paused = { ...two, timer:{ ...two.timer, status:'paused', stepId:'trash' } };
+  const changedPaused = A.changeSessionTimer(paused, '4', now);
+  assert.equal(changedPaused.timer.status, 'paused');
+  assert.equal(changedPaused.timer.remaining, 240);
+  assert.equal(changedPaused.timer.endsAt, null);
+  const removed = A.removeSessionTimer(changedPaused, 'trash');
+  assert.equal(removed.timer, null);
+  assert.equal(removed.timerDismissedStepId, 'trash');
+  assert.equal(A.prepareStepTimer(removed, 'trash', now).timer, null);
+  const nextStep = A.prepareStepTimer(removed, 'relocate', now);
+  assert.equal(nextStep.timer, null);
+  const tailored = A.createSession({ source:'tailored', room, minutes:'10', energy:'steady', now });
+  const suggested = A.prepareStepTimer(tailored, 'trash', now);
+  assert.equal(suggested.timer.duration, 600);
+  const tailoredRemoved = A.removeSessionTimer(suggested, 'trash');
+  assert.equal(A.prepareStepTimer(tailoredRemoved, 'trash', now).timer, null);
+  assert.equal(A.timerInstruction(tailoredRemoved), '');
+  assert.equal(A.prepareStepTimer(tailoredRemoved, 'relocate', now).timer.duration, 600);
+  assert.deepEqual(JSON.parse(JSON.stringify(A.changeSessionTimer(session, '0', now))), JSON.parse(JSON.stringify(session)));
 });
 
 test('custom room ids are stable opaque identifiers independent of normalized labels', () => {
@@ -200,6 +240,22 @@ test('workflow transitions preserve tasks, bound loops, and close once', () => {
   assert.equal(closed.history.length, 1); assert.equal(A.closeSession(closed, now + 20000).history.length, 1);
 });
 
+test('cancelling a session clears only the active session and returns home', () => {
+  const root = A.createDefaultRoot();
+  const existing = { id:'old', startedAt:'2026-07-01T10:00:00.000Z', endedAt:'2026-07-01T10:05:00.000Z', activeMs:300000, room, source:'start-now', completedStepIds:['trash'], ending:'completed' };
+  root.history = [existing];
+  root.lastCompletion = existing;
+  root.route = 'session';
+  root.activeSession = A.startActiveClock(A.createSession({ source:'start-now', room, now }), now);
+  const cancelled = A.cancelSession(root);
+  assert.equal(cancelled.route, 'home');
+  assert.equal(cancelled.activeSession, null);
+  assert.deepEqual(JSON.parse(JSON.stringify(cancelled.history)), [existing]);
+  assert.deepEqual(JSON.parse(JSON.stringify(cancelled.lastCompletion)), existing);
+  assert.equal(A.cancelSession(cancelled).activeSession, null);
+  assert.ok(root.activeSession, 'the input root is not mutated');
+});
+
 test('PWA app-shell metadata is complete and local-only', () => {
   assert.match(html, /rel="manifest" href="manifest\.webmanifest"/);
   assert.match(html, /apple-mobile-web-app-capable/);
@@ -261,6 +317,8 @@ test('critical browser wiring preserves dialogs, focus, active-work navigation, 
   assert.match(html, /clearInterval\(alarmInterval\)[\s\S]{0,160}alarmInterval=setInterval/);
   assert.match(html, /focusRouteHeading|restoreTimerFocus/);
   assert.match(html, /homeButton\.disabled\s*=/);
+  assert.match(html, /leaveButton\.hidden\s*=/);
+  assert.match(html, /leaveDialog\.addEventListener\(['"]cancel['"]/);
   assert.match(html, /\.meta-pills span\s*\{[^}]*overflow-wrap:\s*anywhere/);
   assert.match(html, /bindNav\(\);focusRouteHeading\(\);\s*\n\s*\}/);
   const browserHarness = fs.readFileSync(new URL('./tests.html', import.meta.url), 'utf8');
