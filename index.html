@@ -4,6 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f3efe6">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Room to Begin">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
   <title>Room to Begin — Guided decluttering</title>
   <style>
     :root {
@@ -57,11 +62,13 @@
       min-height: 100dvh;
       margin: 0 auto;
       display: grid;
+      grid-template-columns: minmax(0, 1fr);
       grid-template-rows: auto 1fr;
       padding: max(18px, env(safe-area-inset-top)) 18px max(24px, env(safe-area-inset-bottom));
     }
 
     header {
+      min-width: 0;
       min-height: 58px;
       display: flex;
       align-items: center;
@@ -95,12 +102,13 @@
     .quiet-button:hover { background: rgb(255 253 248 / 0.7); color: var(--ink); }
 
     main {
+      min-width: 0;
       display: grid;
       align-items: center;
       padding: clamp(20px, 6vh, 64px) 0;
     }
 
-    .screen { width: 100%; animation: enter 260ms ease-out both; }
+    .screen { width: 100%; min-width: 0; overflow-wrap: anywhere; animation: enter 260ms ease-out both; }
 
     @keyframes enter {
       from { opacity: 0; transform: translateY(8px); }
@@ -381,6 +389,7 @@
       transition: opacity 180ms ease, transform 180ms ease;
     }
     .toast.show { opacity: 1; transform: translate(-50%, 0); }
+    .storage-warning { margin: 0 auto 12px; padding: 10px 14px; border-radius: 12px; color: var(--ink); background: #f4dfca; text-align: center; }
 
     dialog {
       width: min(calc(100% - 28px), 520px);
@@ -433,6 +442,34 @@
       line-height: 1.5;
     }
 
+    .bottom-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 30px; padding-top: 12px; border-top: 1px solid var(--line); }
+    .bottom-nav button[aria-current="page"] { color: var(--moss-dark); background: var(--moss-soft); font-weight: 750; }
+    .room-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 28px; }
+    .custom-room { display: grid; gap: 10px; margin-top: 16px; }
+    .custom-room[hidden] { display: none; }
+    .custom-room input { width: 100%; min-height: 54px; border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; background: var(--surface); color: var(--ink); }
+    .history-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 28px 0; }
+    .stat, .history-section { border: 1px solid var(--line); border-radius: 18px; background: var(--surface); padding: 18px; }
+    .stat strong { display: block; font-family: Georgia, serif; font-size: 1.8rem; }
+    .stat span, .muted { color: var(--muted); }
+    .history-section { margin-top: 14px; }
+    .history-section h3 { margin: 0 0 14px; font-family: Georgia, serif; }
+    .room-row, .session-row { width: 100%; min-height: 50px; display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border: 0; border-bottom: 1px solid var(--line); color: var(--ink); background: transparent; text-align: left; }
+    .room-row > span, .session-row > span { min-width: 0; overflow-wrap: anywhere; }
+    button.room-row { cursor: pointer; }
+    .room-row:last-child, .session-row:last-child { border-bottom: 0; }
+    .calendar-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .calendar { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-top: 12px; }
+    .calendar span, .calendar button { min-width: 0; min-height: 44px; display: grid; place-items: center; border: 0; border-radius: 10px; background: transparent; color: var(--muted); }
+    .calendar button { color: var(--ink); background: var(--moss-soft); cursor: pointer; font-weight: 700; }
+    .calendar button.multiple { background: #bfd2c1; }
+    .alarm-content { padding: 30px; }
+    .alarm-content h2 { font-size: 2rem; }
+    .alarm-content p { color: var(--muted); line-height: 1.55; }
+    .filter-note { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: 10px 0; }
+    .meta-pills { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+    .meta-pills span { min-width: 0; max-width: 100%; overflow-wrap: anywhere; padding: 7px 10px; border-radius: 999px; color: var(--muted); background: var(--surface); border: 1px solid var(--line); font-size: .88rem; }
+
     @media (max-width: 520px) {
       main { align-items: start; padding-top: 34px; }
       .option-grid { grid-template-columns: 1fr 1fr; }
@@ -472,15 +509,28 @@
     </div>
   </dialog>
 
-  <div class="toast" id="toast" role="status"></div>
+  <dialog id="alarmDialog" role="alertdialog" aria-modal="true" aria-labelledby="alarmTitle">
+    <div class="alarm-content">
+      <p class="eyebrow">Timer finished</p>
+      <h2 id="alarmTitle">Time is up.</h2>
+      <p>Finish the item in your hands. Stopping or extending the timer will keep you on this same step.</p>
+      <div class="dialog-actions">
+        <button class="primary-button" type="button" id="stopAlarm">Stop timer</button>
+        <button class="secondary-button" type="button" id="extendAlarm">Add 2 minutes</button>
+      </div>
+    </div>
+  </dialog>
 
-  <script>
+  <div class="toast" id="toast" role="status"></div>
+  <p class="storage-warning" id="storageWarning" role="status" hidden>Progress cannot be saved in this browser right now. You can keep going here.</p>
+
+  <script id="room-core">
     (() => {
       'use strict';
 
       function createTimer(durationSeconds) {
         const duration = Math.max(1, Math.floor(Number(durationSeconds) || 1));
-        return { duration, remaining: duration, status: 'idle', endsAt: null };
+        return { duration, remaining: duration, status: 'idle', endsAt: null, alarmAcknowledged: false };
       }
 
       function getRemaining(timer, now = Date.now()) {
@@ -490,7 +540,7 @@
 
       function startTimer(timer, now = Date.now()) {
         const remaining = timer.remaining > 0 ? timer.remaining : timer.duration;
-        return { ...timer, remaining, status: 'running', endsAt: now + remaining * 1000 };
+        return { ...timer, remaining, status: 'running', endsAt: now + remaining * 1000, alarmAcknowledged: false };
       }
 
       function syncTimer(timer, now = Date.now()) {
@@ -505,6 +555,14 @@
         return { ...timer, remaining: getRemaining(timer, now), status: 'paused', endsAt: null };
       }
 
+      function acknowledgeTimer(timer) {
+        return { ...timer, status: 'finished', remaining: 0, endsAt: null, alarmAcknowledged: true };
+      }
+
+      function extendTimer(timer, now = Date.now()) {
+        return { ...timer, duration: 120, remaining: 120, status: 'running', endsAt: now + 120000, alarmAcknowledged: false };
+      }
+
       function formatTime(totalSeconds) {
         const safeSeconds = Math.max(0, Math.floor(Number(totalSeconds) || 0));
         const minutes = Math.floor(safeSeconds / 60);
@@ -512,12 +570,192 @@
         return `${minutes}:${String(seconds).padStart(2, '0')}`;
       }
 
-      window.TimerCore = { createTimer, startTimer, pauseTimer, syncTimer, getRemaining, formatTime };
+      const ROOM_LABELS = { kitchen:'Kitchen', living:'Living room', bedroom:'Bedroom', bathroom:'Bathroom', other:'Another room' };
+      const CLOSE_INDEX = 7;
+      const safeNumber = value => Math.max(0, Number.isFinite(Number(value)) ? Number(value) : 0);
+      const clone = value => JSON.parse(JSON.stringify(value));
+      const createDefaultRoot = () => ({ version:2, route:'home', activeSession:null, history:[], customRooms:[], lastCompletion:null });
+      const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+      function normalizeRoomLabel(value) {
+        return String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, 40);
+      }
+      function roomFromLegacy(value) {
+        if (!value) return null;
+        return { id: ROOM_LABELS[value] ? value : 'other', label: ROOM_LABELS[value] || normalizeRoomLabel(value) || 'Another room' };
+      }
+      function idAt(now) {
+        if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+        return `session-${Math.floor(safeNumber(now))}`;
+      }
+      function createCustomRoom(label, now=Date.now(), opaqueId=null) {
+        const normalized=normalizeRoomLabel(label);
+        return { id:`custom-${opaqueId || idAt(now)}`, label:normalized };
+      }
+      function createSession({ source='start-now', room=null, minutes=null, energy=null, now=Date.now() }) {
+        return {
+          id:idAt(now), source:source === 'tailored' ? 'tailored' : 'start-now', room:room ? { id:String(room.id), label:normalizeRoomLabel(room.label) } : null,
+          minutes:source === 'tailored' ? String(minutes || '20') : null, energy:source === 'tailored' ? String(energy || 'steady') : null,
+          stepIndex:0, completedStepIds:[], loops:0, startedAt:new Date(now).toISOString(), activeMs:0, activeSince:null,
+          safeStop:false, screen:'task', supportType:null, timer:null
+        };
+      }
+      function sessionTimerSeconds(session) {
+        if(session?.source!=='tailored') return 600;
+        return ['10','20','30'].includes(session.minutes) ? Number(session.minutes)*60 : null;
+      }
+      const timerInstruction = session => sessionTimerSeconds(session)===null ? '' : ` Stop when your ${sessionTimerSeconds(session)/60}-minute timer ends.`;
+      const isActiveScreen = screen => ['task','basket','support'].includes(screen);
+      function migrateV1State(old) {
+        const root = createDefaultRoot();
+        if (!old || !old.startedAt || !['task','basket','support'].includes(old.screen)) return root;
+        root.activeSession = {
+          ...createSession({ source:'tailored', room:roomFromLegacy(old.room), minutes:old.minutes, energy:old.energy, now:Date.parse(old.startedAt) || Date.now() }),
+          stepIndex:Math.max(0, Math.min(CLOSE_INDEX, Math.floor(Number(old.stepIndex)||0))), completedStepIds:Array.isArray(old.completed) ? [...old.completed] : [],
+          loops:Math.max(0, Math.min(2, Math.floor(Number(old.loops)||0))), startedAt:old.startedAt, safeStop:Boolean(old.safeStop),
+          screen:['task','basket','support'].includes(old.screen) ? old.screen : 'task', supportType:old.supportType || null,
+          timer:old.timer || null
+        };
+        return root;
+      }
+      const finiteNonnegative = value => Number.isFinite(Number(value)) && Number(value)>=0 ? Number(value) : null;
+      const validIso = value => typeof value==='string' && Number.isFinite(Date.parse(value)) ? value : null;
+      function normalizeRoom(value) {
+        if(value===null) return null;
+        if(!value || typeof value.id!=='string' || !value.id || typeof value.label!=='string') return undefined;
+        const label=normalizeRoomLabel(value.label);
+        return label ? {id:value.id.slice(0,100),label} : undefined;
+      }
+      function normalizeTimer(value) {
+        if(value===null) return null;
+        if(!value || typeof value!=='object' || !['idle','running','paused','finished'].includes(value.status)) return null;
+        const duration=finiteNonnegative(value.duration),remaining=finiteNonnegative(value.remaining);
+        if(duration===null||duration<1||remaining===null) return null;
+        const endsAt=value.status==='running'?finiteNonnegative(value.endsAt):null;
+        if(value.status==='running'&&endsAt===null) return null;
+        const timer={duration:Math.floor(duration),remaining:Math.floor(remaining),status:value.status,endsAt,alarmAcknowledged:Boolean(value.alarmAcknowledged)};
+        if(typeof value.stepId==='string')timer.stepId=value.stepId;
+        return timer;
+      }
+      function stringArray(value) { return Array.isArray(value)?value.filter(item=>typeof item==='string'):[]; }
+      function normalizeSession(value) {
+        if(!value||typeof value!=='object'||typeof value.id!=='string'||!value.id||!validIso(value.startedAt)||!isActiveScreen(value.screen)) return null;
+        const room=normalizeRoom(value.room);
+        if(room===undefined) return null;
+        const source=value.source==='tailored'?'tailored':'start-now';
+        const minutes=source==='tailored'&&['10','20','30','open'].includes(String(value.minutes))?String(value.minutes):source==='tailored'?'20':null;
+        const energy=source==='tailored'&&['low','steady','good'].includes(value.energy)?value.energy:source==='tailored'?'steady':null;
+        const activeMs=finiteNonnegative(value.activeMs);
+        const activeSince=value.activeSince==null?null:finiteNonnegative(value.activeSince);
+        return {
+          id:value.id,source,room,minutes,energy,
+          stepIndex:Math.max(0,Math.min(CLOSE_INDEX,Math.floor(Number(value.stepIndex)||0))),
+          completedStepIds:stringArray(value.completedStepIds),loops:Math.max(0,Math.min(2,Math.floor(Number(value.loops)||0))),
+          startedAt:value.startedAt,activeMs:activeMs??0,activeSince,
+          safeStop:Boolean(value.safeStop),screen:value.screen,
+          supportType:typeof value.supportType==='string'?value.supportType:null,timer:normalizeTimer(value.timer)
+        };
+      }
+      function normalizeHistoryEntry(value) {
+        if(!value||typeof value.id!=='string'||!value.id||!validIso(value.startedAt)||!validIso(value.endedAt)||!['completed','safe-stop'].includes(value.ending)) return null;
+        const room=normalizeRoom(value.room);
+        if(room===undefined) return null;
+        const activeMs=finiteNonnegative(value.activeMs);
+        if(activeMs===null) return null;
+        return {id:value.id,startedAt:value.startedAt,endedAt:value.endedAt,activeMs,room,source:value.source==='tailored'?'tailored':'start-now',completedStepIds:stringArray(value.completedStepIds),ending:value.ending};
+      }
+      function parseRootResult(raw) {
+        try {
+          const value=typeof raw==='string'?JSON.parse(raw):raw;
+          if(!value||value.version!==2||typeof value!=='object') return {status:'invalid',root:createDefaultRoot()};
+          const history=Array.isArray(value.history)?value.history.map(normalizeHistoryEntry).filter(Boolean):[];
+          const completion=normalizeHistoryEntry(value.lastCompletion);
+          return {status:'valid',root:{
+            version:2,route:['home','room-picker','setup','session','history','complete'].includes(value.route)?value.route:'home',
+            activeSession:normalizeSession(value.activeSession),history,
+            customRooms:Array.isArray(value.customRooms)?value.customRooms.map(normalizeRoom).filter(room=>room&&room.id.startsWith('custom-')):[],
+            lastCompletion:completion
+          }};
+        } catch (_) { return {status:'invalid',root:createDefaultRoot()}; }
+      }
+      function parseRoot(raw) { return parseRootResult(raw).root; }
+      function selectRecovery(rawV2,rawV1) {
+        if(rawV2!==null&&rawV2!==undefined) {
+          const parsed=parseRootResult(rawV2);
+          if(parsed.status==='valid') return {source:'v2',root:parsed.root,shouldWriteV2:false,rawV2,rawV1};
+        }
+        try {
+          const old=rawV1==null?null:(typeof rawV1==='string'?JSON.parse(rawV1):rawV1);
+          const migrated=migrateV1State(old);
+          if(migrated.activeSession)return {source:'v1',root:migrated,shouldWriteV2:true,rawV2,rawV1};
+        } catch(_){}
+        return {source:'default',root:createDefaultRoot(),shouldWriteV2:rawV2==null,rawV2,rawV1};
+      }
+      function createStorageAdapter(storage,onFailure=()=>{}) {
+        return {
+          get(key){try{return storage.getItem(key);}catch(error){onFailure(error);return null;}},
+          set(key,value){try{storage.setItem(key,value);return true;}catch(error){onFailure(error);return false;}}
+        };
+      }
+      function startActiveClock(s, now=Date.now()) {
+        return s.activeSince == null ? { ...s, activeSince:safeNumber(now) } : { ...s };
+      }
+      function getActiveMs(s, now=Date.now()) {
+        const base=safeNumber(s?.activeMs); const since=s?.activeSince == null ? null : Number(s.activeSince); const end=safeNumber(now);
+        return Math.max(0, base + (since !== null && Number.isFinite(since) && end >= since ? end-since : 0));
+      }
+      function pauseActiveClock(s, now=Date.now()) { return { ...s, activeMs:getActiveMs(s,now), activeSince:null }; }
+      function resumeActiveClock(s, now=Date.now()) { return startActiveClock(s,now); }
+      function finalizeActiveClock(s, now=Date.now()) { return pauseActiveClock(s,now); }
+      const spaceLabel = room => room?.label || 'this space';
+      function getHomeModel(root) {
+        return root.activeSession ? { primary:'Resume session', secondary:'End this session safely', canStart:false } : { primary:'Start now', secondary:'Choose a small session', canStart:true };
+      }
+      const showBottomNav = (_root, screen) => ['home','history','room-picker','setup','complete'].includes(screen);
+      function historyTotals(history=[]) { return { sessions:history.length, activeMs:history.reduce((n,h)=>n+safeNumber(h.activeMs),0) }; }
+      function groupHistoryByRoom(history=[]) {
+        const map=new Map();
+        history.forEach(h=>{ if(!h.room) return; const key=h.room.id; const row=map.get(key)||{id:key,label:h.room.label,activeMs:0,sessions:0}; row.activeMs+=safeNumber(h.activeMs); row.sessions++; map.set(key,row); });
+        return [...map.values()].sort((a,b)=>b.activeMs-a.activeMs || b.sessions-a.sessions || a.label.localeCompare(b.label));
+      }
+      const localDateKey = value => { const d=new Date(value); if(Number.isNaN(d.valueOf())) return ''; return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+      function groupHistoryByDay(history=[], year, monthIndex) {
+        const out={}; history.forEach(h=>{ const d=new Date(h.endedAt); if(d.getFullYear()===year&&d.getMonth()===monthIndex){const key=localDateKey(d);out[key]=(out[key]||0)+1;} }); return out;
+      }
+      function filterHistory(history=[], filters={}) {
+        return history.filter(h=>(!filters.roomId||h.room?.id===filters.roomId)&&(!filters.date||localDateKey(h.endedAt)===filters.date)).sort((a,b)=>new Date(b.endedAt)-new Date(a.endedAt));
+      }
+      function reconcileRestoredTimer(timer, now=Date.now()) {
+        const synced=syncTimer(timer,now); return synced.status==='finished' ? acknowledgeTimer(synced) : synced;
+      }
+      function applyTimerAction(session, action, now=Date.now()) {
+        if(!session.timer) return { ...session };
+        return { ...session, timer:action==='extend'?extendTimer(session.timer,now):acknowledgeTimer(session.timer) };
+      }
+      function transition(session, event, now=Date.now()) {
+        let s=clone(session);
+        if(event.type==='support'){ if(s.timer?.status==='running') s.timer=pauseTimer(s.timer,now); s.supportType=event.supportType; s.screen='support'; }
+        if(event.type==='support-return'){ s.screen='task'; s.supportType=null; }
+        if(event.type==='safe-stop'){ s.safeStop=true;s.stepIndex=CLOSE_INDEX;s.timer=null;s.screen='task'; }
+        if(event.type==='basket-more'){ if(s.loops<2){s.loops++;s.stepIndex=5;}else{s.stepIndex=6;}s.screen='task'; }
+        if(event.type==='basket-empty'){s.stepIndex=6;s.screen='task';}
+        return s;
+      }
+      function closeSession(root, now=Date.now()) {
+        if(!root.activeSession) return root;
+        const s=finalizeActiveClock(root.activeSession,now);
+        if(root.history.some(h=>h.id===s.id)) return { ...root, activeSession:null };
+        const entry={id:s.id,startedAt:s.startedAt,endedAt:new Date(now).toISOString(),activeMs:s.activeMs,room:s.room,source:s.source,completedStepIds:[...s.completedStepIds],ending:s.safeStop?'safe-stop':'completed'};
+        return { ...root, route:'complete', activeSession:null, history:[...root.history,entry], lastCompletion:entry };
+      }
+      window.TimerCore = { createTimer, startTimer, pauseTimer, syncTimer, getRemaining, formatTime, acknowledgeTimer, extendTimer };
+      window.RoomToBeginTestAPI = { createDefaultRoot,migrateV1State,parseRoot,parseRootResult,selectRecovery,createStorageAdapter,createSession,createCustomRoom,sessionTimerSeconds,timerInstruction,isActiveScreen,normalizeRoomLabel,escapeHtml,spaceLabel,getHomeModel,showBottomNav,startActiveClock,pauseActiveClock,resumeActiveClock,getActiveMs,finalizeActiveClock,historyTotals,groupHistoryByRoom,groupHistoryByDay,filterHistory,localDateKey,reconcileRestoredTimer,applyTimerAction,transition,closeSession };
+      window.__ROOM_V2__ = true;
     })();
   </script>
   <script>
     (() => {
       'use strict';
+      if (window.__ROOM_V2__) return;
 
       const STORAGE_KEY = 'roomToBegin.prototype.v1';
       const app = document.getElementById('app');
@@ -1020,6 +1258,131 @@
       });
 
       render();
+    })();
+  </script>
+  <script>
+    (() => {
+      'use strict';
+      const A=window.RoomToBeginTestAPI,T=window.TimerCore;
+      const V1='roomToBegin.prototype.v1',V2='roomToBegin.v2';
+      const app=document.getElementById('app'),homeButton=document.getElementById('homeButton'),resetButton=document.getElementById('resetButton');
+      const supportDialog=document.getElementById('supportDialog'),alarmDialog=document.getElementById('alarmDialog'),toast=document.getElementById('toast'),storageWarning=document.getElementById('storageWarning');
+      const rooms=[['kitchen','Kitchen'],['living','Living room'],['bedroom','Bedroom'],['bathroom','Bathroom']];
+      const steps=[
+        {id:'trash',title:'Begin with what’s easy.',instruction:'Collect only obvious trash, recycling, empty packaging, expired items, and broken things you definitely won’t repair. Don’t organize yet.',destination:'Trash and recycling go directly to your normal bins.'},
+        {id:'relocate',title:'Gather things that belong elsewhere.',instruction:'Put anything that belongs in another room into one basket or box. Stay in this room for now so you don’t get pulled into another task.',destination:'Everything goes into one relocation basket—never several little piles.'},
+        {id:'empty-relocate',title:'Empty the relocation basket.',instruction:'Take each item to the room where it belongs and put it in its existing home. If an item has no established home, leave it in the basket.',destination:'Existing home or back in the basket. Don’t create a new pile.'},
+        {id:'surface',title:'Clear one small surface.',instruction:'Choose one tabletop, counter, or shelf—not the whole room. Put back what you use, set aside what can be donated, and place anything without a home in the basket.',destination:'Use three destinations only: keep here, donation bag, or no-home basket.'},
+        {id:'donations',title:'Move donations toward the exit.',instruction:'Close the donation bag and move it out of this room now. This keeps “donate” from becoming another permanent category of clutter.',destination:'Put it directly in your car, or beside the exit you use for errands.'},
+        {id:'no-home',title:'Resolve five no-home items.',instruction:'Take only five items from the basket. Give each one a specific home near where you use it, or decide it should leave the house. Don’t buy organizers yet.',destination:'A real, specific home—or out of the house.'},
+        {id:'contained',title:'Reset one contained space.',instruction:'Choose one small drawer, cabinet shelf, or bin. Empty only that space, then return only what you use and want stored there.',destination:'Sort the rest into trash, recycling, donation, or the relocation basket. Fully reset this area before moving on.'},
+        {id:'close-loop',title:'Close the loop.',instruction:'Take out new trash and recycling, stage donations to leave, and put away everything in the relocation basket. Finish without leaving sorting piles behind.',destination:'Every item ends in its home, an outside bin, or the staged donation bag.'}
+      ];
+      let storageFailed=false;
+      const storage=A.createStorageAdapter(localStorage,()=>{storageFailed=true;if(storageWarning)storageWarning.hidden=false;});
+      let root=loadRoot(),ticker=null,toaster=null,historyMonth=new Date(),filters={};
+      let audioContext=null,alarmInterval=null;
+      function loadRoot(){
+        const rawV2=storage.get(V2),rawV1=storage.get(V1),selected=A.selectRecovery(rawV2,rawV1);
+        if(selected.source==='v1'&&rawV2!=null)storage.set(`${V2}.invalid`,rawV2);
+        if(selected.shouldWriteV2)storage.set(V2,JSON.stringify(selected.root));
+        return selected.root;
+      }
+      function save(){return storage.set(V2,JSON.stringify(root));}
+      function session(){return root.activeSession;}
+      function setSession(value){root.activeSession=value;save();}
+      function toastMessage(message){toast.textContent=message;toast.classList.add('show');clearTimeout(toaster);toaster=setTimeout(()=>toast.classList.remove('show'),2400);}
+      const activeScreen=s=>s&&A.isActiveScreen(s.screen);
+      function pauseActivity(now=Date.now()){if(session())setSession(A.pauseActiveClock(session(),now));}
+      function resumeActivity(now=Date.now()){if(session()&&activeScreen(session())&&!document.hidden&&!alarmDialog.open)setSession(A.resumeActiveClock(session(),now));}
+      function nav(route){root.route=route;save();render();}
+      function navHtml(current){return `<nav class="bottom-nav" aria-label="Primary"><button class="quiet-button" type="button" data-route="home" ${current==='home'?'aria-current="page"':''}>Home</button><button class="quiet-button" type="button" data-route="history" ${current==='history'?'aria-current="page"':''}>History</button></nav>`;}
+      function bindNav(){document.querySelectorAll('[data-route]').forEach(b=>b.addEventListener('click',()=>nav(b.dataset.route)));}
+      function render(){
+        clearInterval(ticker);resetButton.hidden=true;
+        const route=root.route;
+        if(route==='history')renderHistory();
+        else if(route==='room-picker')renderRoomPicker();
+        else if(route==='setup')renderSetup();
+        else if(route==='complete')renderComplete();
+        else if(session()&&route==='session')renderSession();
+        else renderHome();
+        homeButton.disabled=Boolean(session()&&route==='session'&&activeScreen(session()));
+        homeButton.setAttribute('aria-disabled',String(homeButton.disabled));
+        focusRouteHeading();
+        window.scrollTo({top:0,behavior:'instant'});
+      }
+      function focusRouteHeading(){const heading=app.querySelector('h1,h2');if(heading){heading.tabIndex=-1;heading.focus();}}
+      function restoreTimerFocus(id){if(id)document.getElementById(id)?.focus();}
+      function renderHome(){
+        pauseActivity();const model=A.getHomeModel(root),s=session();
+        app.innerHTML=`<section class="screen" aria-labelledby="home-title"><p class="eyebrow">Guided decluttering</p><h1 id="home-title">${s?'Your session is right where you left it.':'One small step. Then the next.'}</h1><p class="lede">${s?`${A.escapeHtml(A.spaceLabel(s.room))} · ${A.escapeHtml(steps[s.stepIndex]?.title||'Closing step')}`:'Choose one manageable action at a time. Every step says exactly where things go.'}</p><div class="button-stack"><button class="primary-button" id="homePrimary">${model.primary}</button><button class="secondary-button" id="homeSecondary">${model.secondary}</button></div><p class="prototype-note">Your progress and history stay only in this browser.</p>${navHtml('home')}</section>`;
+        document.getElementById('homePrimary').onclick=()=>{root.route=s?'session':'room-picker';save();render();};
+        document.getElementById('homeSecondary').onclick=()=>{if(s){setSession(A.transition(s,{type:'safe-stop'}));root.route='session';}else root.route='setup';save();render();};
+        bindNav();
+      }
+      function roomButtons(){
+        return [...rooms,...root.customRooms.map(r=>[r.id,r.label])].map(([id,label])=>`<button class="choice-button" type="button" data-room-id="${A.escapeHtml(id)}" data-room-label="${A.escapeHtml(label)}">${A.escapeHtml(label)}</button>`).join('');
+      }
+      function renderRoomPicker(){
+        app.innerHTML=`<section class="screen" aria-labelledby="room-title"><p class="eyebrow">Start now</p><h2 id="room-title">Where are you?</h2><p class="lede">Choose a room and your first small step will appear immediately.</p><div class="room-grid">${roomButtons()}<button class="choice-button" id="otherRoom">Other</button><button class="choice-button" id="skipRoom">Skip</button></div><form class="custom-room" id="customRoomForm" hidden><label for="customRoom">Room name</label><input id="customRoom" maxlength="40" autocomplete="off"><button class="primary-button">Begin here</button></form>${navHtml('')}</section>`;
+        document.querySelectorAll('[data-room-id]').forEach(b=>b.onclick=()=>begin('start-now',{id:b.dataset.roomId,label:b.dataset.roomLabel}));
+        document.getElementById('skipRoom').onclick=()=>begin('start-now',null);
+        document.getElementById('otherRoom').onclick=()=>{const f=document.getElementById('customRoomForm');f.hidden=false;document.getElementById('customRoom').focus();};
+        document.getElementById('customRoomForm').onsubmit=e=>{e.preventDefault();const label=A.normalizeRoomLabel(document.getElementById('customRoom').value);if(!label)return;const room=A.createCustomRoom(label);root.customRooms.push(room);begin('start-now',room);};bindNav();
+      }
+      function begin(source,room,minutes=null,energy=null){if(session())return;root.activeSession=A.startActiveClock(A.createSession({source,room,minutes,energy,now:Date.now()}));root.route='session';save();render();}
+      function radio(name,legend,options){return `<fieldset><legend>${legend}</legend><div class="option-grid">${options.map(([v,l],i)=>`<div class="radio-option"><input id="${name}-${v}" name="${name}" value="${v}" type="radio" ${i===0?'checked':''} required><label for="${name}-${v}">${l}</label></div>`).join('')}</div></fieldset>`;}
+      function renderSetup(){
+        app.innerHTML=`<section class="screen" aria-labelledby="setup-title"><p class="eyebrow">Choose a small session</p><h2 id="setup-title">Make the session fit today.</h2><form class="form-card" id="setupForm">${radio('room','Which room?',[...rooms,['none','Skip']])}${radio('minutes','How much time?',[['10','10 minutes'],['20','20 minutes'],['30','30 minutes'],['open','No deadline']])}${radio('energy','How is your energy?',[['low','Low'],['steady','Steady'],['good','Good']])}<div class="button-stack"><button class="primary-button">Give me the first step</button></div></form>${navHtml('')}</section>`;
+        document.getElementById('setupForm').onsubmit=e=>{e.preventDefault();const d=new FormData(e.currentTarget),id=d.get('room'),found=rooms.find(r=>r[0]===id);begin('tailored',found?{id:found[0],label:found[1]}:null,d.get('minutes'),d.get('energy'));};bindNav();
+      }
+      function ensureTimer(){let s=session(),step=steps[s.stepIndex],seconds=A.sessionTimerSeconds(s);if(seconds===null){if(s.timer)setSession({...s,timer:null});return;}if(!s.timer||s.timer.stepId!==step.id)s={...s,timer:{...T.createTimer(seconds),stepId:step.id}};else s={...s,timer:{...T.syncTimer(s.timer),stepId:step.id}};setSession(s);}
+      function timerText(status){return {idle:'Ready when you are.',running:'Stay with this one step.',paused:'Paused. Your place is saved.',finished:'Time is up. Finish the item in your hands.'}[status];}
+      function renderSession(timerFocusId=null){
+        const s=session();if(!s){root.route='home';save();return render();}
+        if(s.screen==='basket')return renderBasket();
+        if(s.screen==='support')return renderSupport();
+        ensureTimer();resumeActivity();const current=session(),step=steps[current.stepIndex],timer=current.timer;
+        const timerHtml=timer?`<div class="timer-panel ${timer.status==='finished'?'finished':''}" id="timerPanel"><div><p class="timer-label">Step timer</p><p class="timer-display" id="timerDisplay" role="timer">${T.formatTime(timer.remaining)}</p><p class="timer-status" id="timerStatus" aria-live="polite">${timerText(timer.status)}</p></div><div class="timer-controls"><button class="secondary-button" id="timerToggle">${timer.status==='running'?'Pause timer':timer.status==='paused'?'Resume timer':timer.status==='finished'?'Start again':'Start timer'}</button><button class="quiet-button" id="timerReset">Reset</button></div></div>`:'';
+        app.innerHTML=`<section class="screen" aria-labelledby="task-title"><div class="meta-pills"><span>${A.escapeHtml(A.spaceLabel(current.room))}</span><span>${current.stepIndex===7?'Closing step':'One step at a time'}</span></div><article class="task-card"><div class="task-copy"><p class="task-number">Your next small step</p><h2 id="task-title">${step.title}</h2><p class="instruction">${step.instruction}${A.timerInstruction(current)}</p><div class="destination"><strong>Where things go</strong>${step.destination}</div></div>${timerHtml}<div class="task-actions"><button class="quiet-button" id="stuckButton">I’m stuck</button><button class="primary-button" id="doneButton">Done</button></div></article><div class="button-stack"><button class="quiet-button" id="stopButton">I need to stop for today</button></div></section>`;
+        document.getElementById('timerToggle')?.addEventListener('click',toggleTimer);document.getElementById('timerReset')?.addEventListener('click',resetTimer);document.getElementById('stuckButton').onclick=openSupport;document.getElementById('doneButton').onclick=done;document.getElementById('stopButton').onclick=()=>{setSession(A.transition(session(),{type:'safe-stop'}));render();};updateTimer(false);startTicker();if(timerFocusId)restoreTimerFocus(timerFocusId);else focusRouteHeading();
+      }
+      function updateTimer(ring){
+        if(!session()?.timer)return;const before=session().timer.status,synced=T.syncTimer(session().timer);setSession({...session(),timer:{...synced,stepId:session().timer.stepId}});
+        const display=document.getElementById('timerDisplay'),status=document.getElementById('timerStatus');if(display)display.textContent=T.formatTime(synced.remaining);if(status)status.textContent=timerText(synced.status);
+        if(ring&&before==='running'&&synced.status==='finished'&&!document.hidden)startAlarm();
+      }
+      function startTicker(){clearInterval(ticker);if(session()?.timer?.status==='running')ticker=setInterval(()=>updateTimer(true),500);}
+      function toggleTimer(){let s=session(),timer=T.syncTimer(s.timer);primeAudio();timer=timer.status==='running'?T.pauseTimer(timer):T.startTimer(timer);setSession({...s,timer:{...timer,stepId:s.timer.stepId}});renderSession('timerToggle');}
+      function resetTimer(){silenceAlarm();let s=session();setSession({...s,timer:{...T.createTimer(A.sessionTimerSeconds(s)),stepId:steps[s.stepIndex].id}});renderSession('timerReset');}
+      function primeAudio(){try{audioContext ||= new (window.AudioContext||window.webkitAudioContext)();audioContext.resume();}catch(_){}}
+      function tone(){try{if(!audioContext)return;const o=audioContext.createOscillator(),g=audioContext.createGain();o.frequency.value=660;g.gain.setValueAtTime(.0001,audioContext.currentTime);g.gain.exponentialRampToValueAtTime(.12,audioContext.currentTime+.02);g.gain.exponentialRampToValueAtTime(.0001,audioContext.currentTime+.28);o.connect(g).connect(audioContext.destination);o.start();o.stop(audioContext.currentTime+.3);}catch(_){}}
+      function startAlarm(){pauseActivity();clearInterval(alarmInterval);alarmInterval=null;if(!alarmDialog.open)alarmDialog.showModal();primeAudio();tone();alarmInterval=setInterval(tone,900);try{navigator.vibrate?.([250,150,250]);}catch(_){}}
+      function silenceAlarm(){clearInterval(alarmInterval);alarmInterval=null;try{navigator.vibrate?.(0);}catch(_){}if(alarmDialog.open)alarmDialog.close();}
+      alarmDialog.addEventListener('cancel',event=>event.preventDefault());
+      document.getElementById('stopAlarm').onclick=()=>{silenceAlarm();setSession(A.resumeActiveClock(A.applyTimerAction(session(),'acknowledge')));renderSession();};
+      document.getElementById('extendAlarm').onclick=()=>{silenceAlarm();setSession(A.resumeActiveClock(A.applyTimerAction(session(),'extend')));renderSession();};
+      function returnFromSupport(){if(session()?.screen==='support')setSession(A.transition(session(),{type:'support-return'}));if(supportDialog.open)supportDialog.close();renderSession();}
+      function openSupport(){setSession(A.transition(session(),{type:'support',supportType:null}));supportDialog.showModal();}
+      document.querySelectorAll('[data-support]').forEach(b=>b.onclick=()=>{supportDialog.close();setSession({...A.transition(session(),{type:'support',supportType:b.dataset.support}),supportType:b.dataset.support});renderSupport();});
+      document.getElementById('closeSupport').onclick=returnFromSupport;
+      supportDialog.addEventListener('cancel',event=>{event.preventDefault();returnFromSupport();});
+      function renderSupport(){resumeActivity();const s=session(),answers={'too-much':['Shrink the boundary.','Choose an area no larger than a bath towel. Ignore everything outside it.'],decision:['Set the hard decision aside.','Place that one item in the no-home basket, then return to obvious decisions.'],distracted:['Return to the last object.','Put the item in your hands into its destination, then handle only the item beside it.'],tired:['Let’s stop without leaving a mess.','We’ll skip to one short closing step.']},answer=answers[s.supportType]||answers['too-much'];app.innerHTML=`<section class="screen"><p class="eyebrow">You’re not behind</p><h2>${answer[0]}</h2><div class="support-card"><p>${answer[1]}</p></div><div class="button-stack"><button class="primary-button" id="supportContinue">${s.supportType==='tired'?'Close the session safely':'Return to my step'}</button></div></section>`;document.getElementById('supportContinue').onclick=()=>{setSession(s.supportType==='tired'?A.transition(s,{type:'safe-stop'}):A.transition(s,{type:'support-return'}));renderSession();};focusRouteHeading();}
+      function done(){silenceAlarm();let s=A.pauseActiveClock(session()),step=steps[s.stepIndex];if(!s.completedStepIds.includes(step.id))s.completedStepIds.push(step.id);s.timer=null;if(step.id==='no-home')s.screen='basket';else if(step.id==='close-loop'){root.activeSession=s;root=A.closeSession(root);save();return render();}else{s.stepIndex++;s.screen='task';}setSession(s);renderSession();}
+      function renderBasket(){resumeActivity();app.innerHTML=`<section class="screen"><p class="eyebrow">Quick check</p><h2>How is the no-home basket?</h2><p class="lede">Five decisions are enough for one round.</p><div class="choice-list"><button class="choice-button" id="basketEmpty">The basket is empty</button><button class="choice-button" id="basketMore">More items remain</button></div></section>`;document.getElementById('basketEmpty').onclick=()=>{setSession(A.transition(session(),{type:'basket-empty'}));renderSession();};document.getElementById('basketMore').onclick=()=>{setSession(A.transition(session(),{type:'basket-more'}));renderSession();};focusRouteHeading();}
+      const humanDuration=ms=>{const mins=Math.round(ms/60000);if(mins<60)return `${mins} min`;const h=Math.floor(mins/60),m=mins%60;return `${h} hr${h===1?'':'s'}${m?` ${m} min`:''}`;};
+      function renderComplete(){const h=root.lastCompletion;if(!h){root.route='home';return render();}app.innerHTML=`<section class="screen"><div class="completion-mark">✓</div><p class="eyebrow">${h.ending==='safe-stop'?'Closed safely':'Session complete'}</p><h2>You finished without leaving sorting piles behind.</h2><ul class="summary-list"><li><span>Room</span><strong>${A.escapeHtml(A.spaceLabel(h.room))}</strong></li><li><span>Active time</span><strong>${humanDuration(h.activeMs)}</strong></li><li><span>Steps completed</span><strong>${h.completedStepIds.length}</strong></li><li><span>Ending</span><strong>${h.ending==='safe-stop'?'Closed safely':'Plan completed'}</strong></li></ul><div class="button-stack"><button class="primary-button" data-route="home">Return home</button><button class="secondary-button" data-route="history">View history</button></div></section>`;bindNav();}
+      function calendarHtml(history){const y=historyMonth.getFullYear(),m=historyMonth.getMonth(),counts=A.groupHistoryByDay(history,y,m),first=new Date(y,m,1).getDay(),days=new Date(y,m+1,0).getDate();let cells='<span></span>'.repeat(first);for(let d=1;d<=days;d++){const key=`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`,n=counts[key]||0;cells+=n?`<button class="${n>1?'multiple':''}" data-date="${key}" aria-label="${new Date(y,m,d).toLocaleDateString(undefined,{month:'long',day:'numeric'})}: ${n} session${n===1?'':'s'}">${d}</button>`:`<span>${d}</span>`;}return `<div class="calendar-head"><button class="quiet-button" id="prevMonth" aria-label="Previous month">←</button><strong>${historyMonth.toLocaleDateString(undefined,{month:'long',year:'numeric'})}</strong><button class="quiet-button" id="nextMonth" aria-label="Next month">→</button></div><div class="calendar">${cells}</div>`;}
+      function renderHistory(){pauseActivity();const totals=A.historyTotals(root.history),groups=A.groupHistoryByRoom(root.history),shown=A.filterHistory(root.history,filters);app.innerHTML=`<section class="screen"><p class="eyebrow">Local progress</p><h2>History</h2><p class="lede">A quiet record of time you spent making room.</p><div class="history-stats"><div class="stat"><strong>${totals.sessions}</strong><span>sessions</span></div><div class="stat"><strong>${humanDuration(totals.activeMs)}</strong><span>active time</span></div></div>${root.history.length?`<section class="history-section"><h3>Rooms</h3>${groups.map(g=>`<button class="room-row" data-filter-room="${A.escapeHtml(g.id)}"><span>${A.escapeHtml(g.label)}</span><span>${humanDuration(g.activeMs)} · ${g.sessions}</span></button>`).join('')||'<p class="muted">Rooms were skipped for these sessions.</p>'}</section><section class="history-section"><h3>Calendar</h3>${calendarHtml(root.history)}</section>${filters.roomId||filters.date?`<div class="filter-note"><span>Showing a filtered view</span><button class="quiet-button" id="clearFilter">Clear filter</button></div>`:''}<section class="history-section"><h3>Sessions</h3>${shown.length?shown.map(h=>`<div class="session-row"><span>${new Date(h.endedAt).toLocaleString([], {dateStyle:'medium',timeStyle:'short'})}<br><span class="muted">${A.escapeHtml(A.spaceLabel(h.room))}</span></span><span>${humanDuration(h.activeMs)} · ${h.completedStepIds.length} steps<br><span class="muted">${h.ending==='safe-stop'?'Closed safely':'Plan completed'}</span></span></div>`).join(''):'<p class="muted">No sessions match this filter.</p>'}</section>`:'<section class="history-section"><h3>No sessions yet</h3><p class="muted">Completed sessions will appear here after the closing step.</p></section>'}${navHtml('history')}</section>`;
+        document.querySelectorAll('[data-filter-room]').forEach(b=>b.onclick=()=>{filters={roomId:b.dataset.filterRoom};renderHistory();});document.querySelectorAll('[data-date]').forEach(b=>b.onclick=()=>{filters={date:b.dataset.date};renderHistory();});document.getElementById('clearFilter')?.addEventListener('click',()=>{filters={};renderHistory();});document.getElementById('prevMonth')?.addEventListener('click',()=>{historyMonth=new Date(historyMonth.getFullYear(),historyMonth.getMonth()-1,1);renderHistory();});document.getElementById('nextMonth')?.addEventListener('click',()=>{historyMonth=new Date(historyMonth.getFullYear(),historyMonth.getMonth()+1,1);renderHistory();});bindNav();focusRouteHeading();
+      }
+      homeButton.onclick=()=>{if(!homeButton.disabled)nav('home');};
+      document.addEventListener('visibilitychange',()=>{if(!session())return;if(document.hidden){pauseActivity();silenceAlarm();}else{const s=session();if(s.timer)s.timer=A.reconcileRestoredTimer(s.timer);setSession(root.route==='session'&&activeScreen(s)?A.resumeActiveClock(s):A.pauseActiveClock(s));render();}});
+      window.addEventListener('pagehide',()=>{pauseActivity();silenceAlarm();});
+      if(session()?.timer)root.activeSession={...session(),timer:A.reconcileRestoredTimer(session().timer)};
+      save();render();
+      if('serviceWorker'in navigator&&(location.protocol==='https:'||location.hostname==='localhost'||location.hostname==='127.0.0.1'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
     })();
   </script>
 </body>

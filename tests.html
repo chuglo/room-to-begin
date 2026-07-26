@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Room to Begin tests</title>
+  <style>.test-frame { position: fixed; width: 1px; height: 1px; opacity: 0; pointer-events: none; border: 0; }</style>
+</head>
+<body>
+  <h1>Room to Begin browser tests</h1>
+  <p id="status">Loading production code…</p>
+  <ol id="results"></ol>
+  <iframe class="test-frame" title="Production application" aria-hidden="true"></iframe>
+  <script>
+    const frame = document.querySelector('iframe');
+    const storageKeys = ['roomToBegin.v2', 'roomToBegin.prototype.v1'];
+    const savedStorage = new Map(storageKeys.map(key => [key, localStorage.getItem(key)]));
+    storageKeys.forEach(key => localStorage.removeItem(key));
+    const restoreStorage = () => storageKeys.forEach(key => {
+      const value = savedStorage.get(key);
+      if (value === null) localStorage.removeItem(key);
+      else localStorage.setItem(key, value);
+    });
+    frame.addEventListener('load', () => {
+      const out = document.getElementById('results');
+      const A = frame.contentWindow.RoomToBeginTestAPI;
+      const checks = [
+        ['v2 default root', () => A.createDefaultRoot().version === 2],
+        ['one active session slot', () => Object.hasOwn(A.createDefaultRoot(), 'activeSession')],
+        ['fast start reaches task', () => A.createSession({ source: 'start-now', room: null, now: 1 }).screen === 'task'],
+        ['custom room markup is escaped', () => A.escapeHtml('<b>') === '&lt;b&gt;'],
+        ['offline manifest is linked', () => frame.contentDocument.querySelector('link[rel=manifest]')],
+        ['new route heading receives focus', () => /^H[12]$/.test(frame.contentDocument.activeElement.tagName) && frame.contentDocument.activeElement.tabIndex === -1],
+        ['approved Start-now question is wired', () => {
+          frame.contentDocument.getElementById('homePrimary').click();
+          return frame.contentDocument.getElementById('room-title')?.textContent === 'Where are you?';
+        }],
+        ['custom room form stays hidden until Other', () => {
+          const form = frame.contentDocument.getElementById('customRoomForm');
+          const before = frame.contentWindow.getComputedStyle(form).display === 'none';
+          frame.contentDocument.getElementById('otherRoom').click();
+          return before && !form.hidden && frame.contentWindow.getComputedStyle(form).display !== 'none';
+        }],
+        ['40-character room label does not overflow a 360px viewport', () => {
+          frame.style.width = '360px';
+          frame.style.height = '800px';
+          frame.contentDocument.getElementById('customRoom').value = 'W'.repeat(40);
+          frame.contentDocument.getElementById('customRoomForm').requestSubmit();
+          const root = frame.contentDocument.documentElement;
+          return root.scrollWidth <= root.clientWidth;
+        }],
+        ['History filter rerender restores heading focus', () => {
+          frame.contentDocument.getElementById('stopButton').click();
+          frame.contentDocument.getElementById('doneButton').click();
+          frame.contentDocument.querySelector('[data-route="history"]').click();
+          frame.contentDocument.querySelector('[data-filter-room]').click();
+          const active = frame.contentDocument.activeElement;
+          return active?.tagName === 'H2' && active.textContent === 'History' && active.tabIndex === -1;
+        }]
+      ];
+      let failures = 0;
+      for (const [name, check] of checks) {
+        let pass = false;
+        try { pass = Boolean(check()); } catch (_) {}
+        failures += pass ? 0 : 1;
+        out.insertAdjacentHTML('beforeend', `<li>${pass ? 'PASS' : 'FAIL'} — ${name}</li>`);
+      }
+      restoreStorage();
+      document.getElementById('status').textContent = failures ? `${failures} failure(s)` : 'All browser checks passed';
+      document.title = failures ? 'FAIL — Room to Begin tests' : 'PASS — Room to Begin tests';
+    });
+    frame.src = `index.html?browser-tests=${Date.now()}`;
+  </script>
+</body>
+</html>
