@@ -1,4 +1,4 @@
-const CACHE_NAME = 'room-to-begin-v2-8';
+const CACHE_NAME = 'room-to-begin-v2-10';
 const CACHE_PREFIX = 'room-to-begin-';
 const APP_SHELL = [
   './',

@@ -336,13 +336,21 @@
     .timer-panel.finished .timer-status { color: var(--clay); }
 
     .timer-controls {
-      min-width: 148px;
-      display: grid;
-      gap: 7px;
+      min-width: 0;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 4px;
     }
 
-    .timer-controls .secondary-button { min-height: 50px; }
-    .timer-controls .quiet-button { width: 100%; }
+    .timer-controls .secondary-button,
+    .timer-controls .quiet-button {
+      width: auto;
+      min-height: 44px;
+      padding: 0 8px;
+      font-size: 0.9rem;
+    }
 
     .task-actions {
       display: grid;
@@ -478,8 +486,7 @@
       main { align-items: start; padding-top: 34px; }
       .option-grid { grid-template-columns: 1fr 1fr; }
       .timer-panel { grid-template-columns: 1fr; gap: 18px; }
-      .timer-controls { grid-template-columns: 1fr auto; min-width: 0; }
-      .timer-controls .quiet-button { width: auto; padding-inline: 16px; }
+      .timer-controls { justify-content: flex-start; }
       .task-actions { grid-template-columns: 1fr; }
       .task-actions .primary-button { order: -1; min-width: 0; }
       .task-actions .quiet-button { width: 100%; }

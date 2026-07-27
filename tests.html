@@ -79,6 +79,17 @@
             && after.activeSince !== null
             && doc.getElementById('timerChange').textContent === 'Change time';
         }],
+        ['timer controls stay compact and touch-safe at 360px', () => {
+          const doc = frame.contentDocument;
+          const controls = doc.querySelector('.timer-controls');
+          const buttons = [...controls.querySelectorAll('button')];
+          const rects = buttons.map(button => button.getBoundingClientRect());
+          const tops = rects.map(rect => Math.round(rect.top));
+          return controls.scrollWidth <= controls.clientWidth
+            && rects.length === 3
+            && Math.max(...tops) - Math.min(...tops) <= 1
+            && rects.every(rect => rect.height >= 44 && rect.height <= 46 && rect.width < 130);
+        }],
         ['Escape keeps the timer and restores Change time focus', () => {
           const doc = frame.contentDocument;
           const before = JSON.parse(frame.contentWindow.localStorage.getItem('roomToBegin.v2')).activeSession.timer;
