@@ -90,6 +90,39 @@
             && Math.max(...tops) - Math.min(...tops) <= 1
             && rects.every(rect => rect.height >= 44 && rect.height <= 46 && rect.width < 130);
         }],
+        ['start, pause, and resume update in place while Start primes phone feedback', () => {
+          const doc = frame.contentDocument;
+          const win = frame.contentWindow;
+          let toneStarts = 0;
+          const vibrationRequests = [];
+          win.AudioContext = class {
+            constructor(){this.currentTime=0;this.destination={};this.state='running';}
+            resume(){this.state='running';return Promise.resolve();}
+            createOscillator(){return {frequency:{value:0},connect(node){return node;},start(){toneStarts++;},stop(){}};}
+            createGain(){return {gain:{setValueAtTime(){},exponentialRampToValueAtTime(){}},connect(node){return node;}};}
+          };
+          Object.defineProperty(win.navigator,'vibrate',{configurable:true,value:pattern=>{vibrationRequests.push(pattern);return true;}});
+          const screen = doc.querySelector('.screen');
+          const panel = doc.getElementById('timerPanel');
+          doc.getElementById('timerToggle').click();
+          const startStayedPut = doc.querySelector('.screen') === screen
+            && doc.getElementById('timerPanel') === panel
+            && doc.getElementById('timerToggle').textContent === 'Pause timer'
+            && toneStarts === 1
+            && vibrationRequests[0] === 60;
+          doc.getElementById('timerToggle').click();
+          const pauseStayedPut = doc.querySelector('.screen') === screen
+            && doc.getElementById('timerPanel') === panel
+            && doc.getElementById('timerToggle').textContent === 'Resume timer';
+          doc.getElementById('timerToggle').click();
+          const resumeStayedPut = doc.querySelector('.screen') === screen
+            && doc.getElementById('timerPanel') === panel
+            && doc.getElementById('timerToggle').textContent === 'Pause timer'
+            && toneStarts === 1
+            && vibrationRequests.length === 1;
+          doc.getElementById('timerToggle').click();
+          return startStayedPut && pauseStayedPut && resumeStayedPut;
+        }],
         ['Escape keeps the timer and restores Change time focus', () => {
           const doc = frame.contentDocument;
           const before = JSON.parse(frame.contentWindow.localStorage.getItem('roomToBegin.v2')).activeSession.timer;
@@ -103,24 +136,36 @@
             && after.activeSince !== null
             && doc.activeElement === doc.getElementById('timerChange');
         }],
-        ['timer expiry while Change time is open rings when dismissed', () => {
+        ['timer expiry while Change time is open rings and repeats vibration until stopped', () => {
           const doc = frame.contentDocument;
           const win = frame.contentWindow;
           doc.getElementById('timerToggle').click();
           const before = JSON.parse(win.localStorage.getItem('roomToBegin.v2')).activeSession;
           doc.getElementById('timerChange').click();
           const realNow = win.Date.now;
+          const realSetInterval = win.setInterval;
+          const alarmLoops = [];
+          const vibrationRequests = [];
           win.Date.now = () => realNow() + 121000;
+          win.setInterval = (callback, delay) => { alarmLoops.push({callback, delay}); return 4242; };
+          Object.defineProperty(win.navigator,'vibrate',{configurable:true,value:pattern=>{vibrationRequests.push(pattern);return true;}});
           doc.getElementById('timerDialog').dispatchEvent(new win.Event('cancel', {cancelable:true}));
-          win.Date.now = realNow;
           const expired = JSON.parse(win.localStorage.getItem('roomToBegin.v2')).activeSession;
           const alarmOpened = doc.getElementById('alarmDialog').open;
+          const alarmLoop = alarmLoops.find(loop => loop.delay === 900);
+          alarmLoop?.callback();
           doc.getElementById('stopAlarm').click();
+          win.Date.now = realNow;
+          win.setInterval = realSetInterval;
           return before.timer.status === 'running'
             && expired.timer.status === 'finished'
             && expired.timer.alarmAcknowledged === false
             && expired.activeSince === null
-            && alarmOpened;
+            && alarmOpened
+            && vibrationRequests.length === 3
+            && JSON.stringify(vibrationRequests[0]) === JSON.stringify([250,150,250])
+            && JSON.stringify(vibrationRequests[1]) === JSON.stringify([250,150,250])
+            && vibrationRequests[2] === 0;
         }],
         ['a running timer can be changed and removed on the same task', () => {
           const doc = frame.contentDocument;
