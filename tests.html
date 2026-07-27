@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Room to Begin tests</title>
+  <style>.test-frame { position: fixed; width: 1px; height: 1px; opacity: 0; pointer-events: none; border: 0; }</style>
+</head>
+<body>
+  <h1>Room to Begin browser tests</h1>
+  <p id="status">Loading production code…</p>
+  <ol id="results"></ol>
+  <iframe class="test-frame" title="Production application" aria-hidden="true"></iframe>
+  <script>
+    const frame = document.querySelector('iframe');
+    const storageKeys = ['roomToBegin.v2', 'roomToBegin.prototype.v1'];
+    const savedStorage = new Map(storageKeys.map(key => [key, localStorage.getItem(key)]));
+    storageKeys.forEach(key => localStorage.removeItem(key));
+    const restoreStorage = () => storageKeys.forEach(key => {
+      const value = savedStorage.get(key);
+      if (value === null) localStorage.removeItem(key);
+      else localStorage.setItem(key, value);
+    });
+    frame.addEventListener('load', () => {
+      const out = document.getElementById('results');
+      const A = frame.contentWindow.RoomToBeginTestAPI;
+      const checks = [
+        ['v2 default root', () => A.createDefaultRoot().version === 2],
+        ['one active session slot', () => Object.hasOwn(A.createDefaultRoot(), 'activeSession')],
+        ['fast start reaches task', () => A.createSession({ source: 'start-now', room: null, now: 1 }).screen === 'task'],
+        ['custom room markup is escaped', () => A.escapeHtml('<b>') === '&lt;b&gt;'],
+        ['offline manifest is linked', () => frame.contentDocument.querySelector('link[rel=manifest]')],
+        ['new route heading receives focus', () => /^H[12]$/.test(frame.contentDocument.activeElement.tagName) && frame.contentDocument.activeElement.tabIndex === -1],
+        ['approved Start-now question is wired', () => {
+          frame.contentDocument.getElementById('homePrimary').click();
+          return frame.contentDocument.getElementById('room-title')?.textContent === 'Where are you?';
+        }],
+        ['custom room form stays hidden until Other', () => {
+          const form = frame.contentDocument.getElementById('customRoomForm');
+          const before = frame.contentWindow.getComputedStyle(form).display === 'none';
+          frame.contentDocument.getElementById('otherRoom').click();
+          return before && !form.hidden && frame.contentWindow.getComputedStyle(form).display !== 'none';
+        }],
+        ['40-character room label does not overflow a 360px viewport', () => {
+          frame.style.width = '360px';
+          frame.style.height = '800px';
+          frame.contentDocument.getElementById('customRoom').value = 'W'.repeat(40);
+          frame.contentDocument.getElementById('customRoomForm').requestSubmit();
+          const root = frame.contentDocument.documentElement;
+          return root.scrollWidth <= root.clientWidth;
+        }],
+        ['Start now has no default timer and offers Set a timer', () => {
+          const doc = frame.contentDocument;
+          const root = JSON.parse(frame.contentWindow.localStorage.getItem('roomToBegin.v2'));
+          return root.activeSession.timer === null
+            && !doc.getElementById('timerToggle')
+            && doc.getElementById('timerChange')?.textContent === 'Set a timer';
+        }],
+        ['a 2-minute timer can be set without advancing the task', () => {
+          const doc = frame.contentDocument;
+          const before = JSON.parse(frame.contentWindow.localStorage.getItem('roomToBegin.v2')).activeSession.stepIndex;
+          doc.getElementById('timerChange').click();
+          const input = doc.getElementById('timerMinutes');
+          const during = JSON.parse(frame.contentWindow.localStorage.getItem('roomToBegin.v2')).activeSession;
+          doc.dispatchEvent(new Event('visibilitychange'));
+          const afterVisibility = JSON.parse(frame.contentWindow.localStorage.getItem('roomToBegin.v2')).activeSession;
+          input.value = '0';
+          doc.getElementById('timerForm').requestSubmit();
+          const invalidStayedOpen = doc.getElementById('timerDialog').open
+            && !doc.getElementById('timerError').hidden
+            && doc.activeElement === input;
+          input.value = '2';
+          doc.getElementById('timerForm').requestSubmit();
+          const after = JSON.parse(frame.contentWindow.localStorage.getItem('roomToBegin.v2')).activeSession;
+          return during.activeSince === null
+            && afterVisibility.activeSince === null
+            && invalidStayedOpen
+            && after.stepIndex === before
+            && after.timer.duration === 120
+            && after.timer.status === 'idle'
+            && after.activeSince !== null
+            && doc.getElementById('timerChange').textContent === 'Change time';
+        }],
+        ['timer controls stay compact and touch-safe at 360px', () => {
+          const doc = frame.contentDocument;
+          const controls = doc.querySelector('.timer-controls');
+          const buttons = [...controls.querySelectorAll('button')];
+          const rects = buttons.map(button => button.getBoundingClientRect());
+          const tops = rects.map(rect => Math.round(rect.top));
+          return controls.scrollWidth <= controls.clientWidth
+            && rects.length === 3
+            && Math.max(...tops) - Math.min(...tops) <= 1
+            && rects.every(rect => rect.height >= 44 && rect.height <= 46 && rect.width < 130);
+        }],
+        ['start, pause, and resume update in place while Start primes phone feedback', () => {
+          const doc = frame.contentDocument;
+          const win = frame.contentWindow;
+          let toneStarts = 0;
+          const vibrationRequests = [];
+          win.AudioContext = class {
+            constructor(){this.currentTime=0;this.destination={};this.state='running';}
+            resume(){this.state='running';return Promise.resolve();}
+            createOscillator(){return {frequency:{value:0},connect(node){return node;},start(){toneStarts++;},stop(){}};}
+            createGain(){return {gain:{setValueAtTime(){},exponentialRampToValueAtTime(){}},connect(node){return node;}};}
+          };
+          Object.defineProperty(win.navigator,'vibrate',{configurable:true,value:pattern=>{vibrationRequests.push(pattern);return true;}});
+          const screen = doc.querySelector('.screen');
+          const panel = doc.getElementById('timerPanel');
+          doc.getElementById('timerToggle').click();
+          const startStayedPut = doc.querySelector('.screen') === screen
+            && doc.getElementById('timerPanel') === panel
+            && doc.getElementById('timerToggle').textContent === 'Pause timer'
+            && toneStarts === 1
+            && vibrationRequests[0] === 60;
+          doc.getElementById('timerToggle').click();
+          const pauseStayedPut = doc.querySelector('.screen') === screen
+            && doc.getElementById('timerPanel') === panel
+            && doc.getElementById('timerToggle').textContent === 'Resume timer';
+          doc.getElementById('timerToggle').click();
+          const resumeStayedPut = doc.querySelector('.screen') === screen
+            && doc.getElementById('timerPanel') === panel
+            && doc.getElementById('timerToggle').textContent === 'Pause timer'
+            && toneStarts === 1
+            && vibrationRequests.length === 1;
+          doc.getElementById('timerToggle').click();
+          return startStayedPut && pauseStayedPut && resumeStayedPut;
+        }],
+        ['Escape keeps the timer and restores Change time focus', () => {
+          const doc = frame.contentDocument;
+          const before = JSON.parse(frame.contentWindow.localStorage.getItem('roomToBegin.v2')).activeSession.timer;
+          doc.getElementById('timerChange').click();
+          doc.getElementById('timerMinutes').value = '9';
+          doc.getElementById('timerDialog').dispatchEvent(new Event('cancel', {cancelable:true}));
+          const after = JSON.parse(frame.contentWindow.localStorage.getItem('roomToBegin.v2')).activeSession;
+          return !doc.getElementById('timerDialog').open
+            && after.timer.duration === before.duration
+            && after.timer.status === before.status
+            && after.activeSince !== null
+            && doc.activeElement === doc.getElementById('timerChange');
+        }],
+        ['timer expiry while Change time is open rings and repeats vibration until stopped', () => {
+          const doc = frame.contentDocument;
+          const win = frame.contentWindow;
+          doc.getElementById('timerToggle').click();
+          const before = JSON.parse(win.localStorage.getItem('roomToBegin.v2')).activeSession;
+          doc.getElementById('timerChange').click();
+          const realNow = win.Date.now;
+          const realSetInterval = win.setInterval;
+          const alarmLoops = [];
+          const vibrationRequests = [];
+          win.Date.now = () => realNow() + 121000;
+          win.setInterval = (callback, delay) => { alarmLoops.push({callback, delay}); return 4242; };
+          Object.defineProperty(win.navigator,'vibrate',{configurable:true,value:pattern=>{vibrationRequests.push(pattern);return true;}});
+          doc.getElementById('timerDialog').dispatchEvent(new win.Event('cancel', {cancelable:true}));
+          const expired = JSON.parse(win.localStorage.getItem('roomToBegin.v2')).activeSession;
+          const alarmOpened = doc.getElementById('alarmDialog').open;
+          const alarmLoop = alarmLoops.find(loop => loop.delay === 900);
+          alarmLoop?.callback();
+          doc.getElementById('stopAlarm').click();
+          win.Date.now = realNow;
+          win.setInterval = realSetInterval;
+          return before.timer.status === 'running'
+            && expired.timer.status === 'finished'
+            && expired.timer.alarmAcknowledged === false
+            && expired.activeSince === null
+            && alarmOpened
+            && vibrationRequests.length === 3
+            && JSON.stringify(vibrationRequests[0]) === JSON.stringify([250,150,250])
+            && JSON.stringify(vibrationRequests[1]) === JSON.stringify([250,150,250])
+            && vibrationRequests[2] === 0;
+        }],
+        ['a running timer can be changed and removed on the same task', () => {
+          const doc = frame.contentDocument;
+          doc.getElementById('timerToggle').click();
+          const before = JSON.parse(frame.contentWindow.localStorage.getItem('roomToBegin.v2')).activeSession;
+          doc.getElementById('timerChange').click();
+          doc.getElementById('timerMinutes').value = '3';
+          doc.getElementById('timerForm').requestSubmit();
+          const changed = JSON.parse(frame.contentWindow.localStorage.getItem('roomToBegin.v2')).activeSession;
+          const changedCorrectly = changed.stepIndex === before.stepIndex
+            && changed.timer.duration === 180
+            && changed.timer.status === 'running'
+            && changed.timer.endsAt > before.timer.endsAt;
+          doc.getElementById('timerChange').click();
+          doc.getElementById('removeTimer').click();
+          const removed = JSON.parse(frame.contentWindow.localStorage.getItem('roomToBegin.v2')).activeSession;
+          return changedCorrectly
+            && removed.stepIndex === before.stepIndex
+            && removed.timer === null
+            && doc.getElementById('timerChange').textContent === 'Set a timer';
+        }],
+        ['Leave session opens a calm explicit confirmation', () => {
+          const doc = frame.contentDocument;
+          const leave = doc.getElementById('leaveButton');
+          doc.getElementById('timerChange').click();
+          doc.getElementById('timerMinutes').value = '2';
+          doc.getElementById('timerForm').requestSubmit();
+          doc.getElementById('timerToggle').click();
+          const before = JSON.parse(frame.contentWindow.localStorage.getItem('roomToBegin.v2')).activeSession;
+          leave.click();
+          doc.dispatchEvent(new Event('visibilitychange'));
+          const during = JSON.parse(frame.contentWindow.localStorage.getItem('roomToBegin.v2')).activeSession;
+          frame.dataset.timerEndsAt = String(before.timer.endsAt);
+          return leave.textContent === 'Leave session'
+            && doc.getElementById('leaveDialog').open
+            && doc.getElementById('leaveTitle').textContent === 'Leave this session?'
+            && doc.getElementById('leaveDescription').textContent.includes('won’t be added to History')
+            && during.activeSince === null
+            && during.timer.status === 'running'
+            && during.timer.endsAt === before.timer.endsAt;
+        }],
+        ['Escape keeps the same session and restores Leave session focus', () => {
+          const doc = frame.contentDocument;
+          const before = JSON.parse(frame.contentWindow.localStorage.getItem('roomToBegin.v2')).activeSession.id;
+          const event = new frame.contentWindow.Event('cancel', { cancelable: true });
+          doc.getElementById('leaveDialog').dispatchEvent(event);
+          const afterRoot = JSON.parse(frame.contentWindow.localStorage.getItem('roomToBegin.v2'));
+          const after = afterRoot.activeSession.id;
+          return event.defaultPrevented
+            && !doc.getElementById('leaveDialog').open
+            && before === after
+            && afterRoot.activeSession.activeSince !== null
+            && afterRoot.activeSession.timer.status === 'running'
+            && String(afterRoot.activeSession.timer.endsAt) === frame.dataset.timerEndsAt
+            && doc.activeElement === doc.getElementById('leaveButton');
+        }],
+        ['timer expiry while Leave session is open rings when kept', () => {
+          const doc = frame.contentDocument;
+          const win = frame.contentWindow;
+          doc.getElementById('leaveButton').click();
+          const before = JSON.parse(win.localStorage.getItem('roomToBegin.v2')).activeSession;
+          const realNow = win.Date.now;
+          win.Date.now = () => realNow() + 121000;
+          doc.getElementById('keepSession').click();
+          win.Date.now = realNow;
+          const expired = JSON.parse(win.localStorage.getItem('roomToBegin.v2')).activeSession;
+          const alarmOpened = doc.getElementById('alarmDialog').open;
+          doc.getElementById('stopAlarm').click();
+          return before.timer.status === 'running'
+            && expired.timer.status === 'finished'
+            && expired.timer.alarmAcknowledged === false
+            && expired.activeSince === null
+            && alarmOpened;
+        }],
+        ['confirmed cancellation clears the session without adding History', () => {
+          const doc = frame.contentDocument;
+          const before = JSON.parse(frame.contentWindow.localStorage.getItem('roomToBegin.v2')).history.length;
+          doc.getElementById('leaveButton').click();
+          doc.getElementById('confirmLeave').click();
+          const root = JSON.parse(frame.contentWindow.localStorage.getItem('roomToBegin.v2'));
+          return root.route === 'home'
+            && root.activeSession === null
+            && root.history.length === before
+            && doc.getElementById('home-title')
+            && doc.getElementById('leaveButton').hidden;
+        }],
+        ['History filter rerender restores heading focus', () => {
+          frame.contentDocument.getElementById('homePrimary').click();
+          frame.contentDocument.querySelector('[data-room-id="kitchen"]').click();
+          frame.contentDocument.getElementById('stopButton').click();
+          frame.contentDocument.getElementById('doneButton').click();
+          frame.contentDocument.querySelector('[data-route="history"]').click();
+          frame.contentDocument.querySelector('[data-filter-room]').click();
+          const active = frame.contentDocument.activeElement;
+          return active?.tagName === 'H2' && active.textContent === 'History' && active.tabIndex === -1;
+        }]
+      ];
+      let failures = 0;
+      for (const [name, check] of checks) {
+        let pass = false;
+        try { pass = Boolean(check()); } catch (_) {}
+        failures += pass ? 0 : 1;
+        out.insertAdjacentHTML('beforeend', `<li>${pass ? 'PASS' : 'FAIL'} — ${name}</li>`);
+      }
+      restoreStorage();
+      document.getElementById('status').textContent = failures ? `${failures} failure(s)` : 'All browser checks passed';
+      document.title = failures ? 'FAIL — Room to Begin tests' : 'PASS — Room to Begin tests';
+    });
+    frame.src = `index.html?browser-tests=${Date.now()}`;
+  </script>
+</body>
+</html>

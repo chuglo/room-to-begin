@@ -1,12 +1,19 @@
-# Room to Begin — prototype
+# Room to Begin
 
 A calm, mobile-first guided decluttering experience for people who feel overwhelmed and do not know where to start.
 
 **Live app:** https://chuglo.github.io/room-to-begin/
 
-## Open it
+## Use it
 
-Double-click `index.html`, or open it in any current browser. The prototype has no dependencies, build step, account, or network requirement.
+Open the [live app](https://chuglo.github.io/room-to-begin/) in a current browser. `index.html` also opens directly for the guided session, but installation and offline caching require HTTPS or localhost.
+
+For an app-like launch:
+
+- Android/Chrome: open the browser menu and choose **Install app** or **Add to Home screen**.
+- iPhone/Safari: tap **Share**, choose **Add to Home Screen**, then confirm.
+
+After one successful online load, the installed app shell is available offline. Progress and history remain local to that browser and device; there is no account, sync, cloud backup, or shared household history.
 
 ## Product hypothesis
 
@@ -18,18 +25,43 @@ People are more likely to complete a decluttering session when the product:
 - offers immediate help when the user feels stuck;
 - ends with a safe closing loop rather than encouraging endless momentum.
 
-## Included in this prototype
+## Included in v2
 
-- Room, available-time, and energy setup
+- One-active-session, resume-first home
+- Room-only **Start now**, plus an optional tailored room/time/energy setup
 - One-step-at-a-time guided flow
-- Energy-adjusted, per-step countdown timers with start, pause, resume, and reset controls
-- Timer persistence across reloads, calm expiry guidance, and automatic pause when asking for help
+- Optional per-step timers: Start-now has no default; users can set, change, or remove any whole-minute duration from 1–120
+- Tailored 10/20/30-minute choices remain editable suggestions rather than fixed limits
+- Foreground countdown alarm with **Stop timer** and **Add 2 minutes**
+- Timer persistence across reloads and automatic pause when asking for help
 - Explicit destinations for trash, recycling, donations, relocation, and no-home items
 - Adaptive “I’m stuck” guidance
 - Bounded repetition for unresolved items
 - Safe-stop flow that closes active piles
-- Local browser persistence and session completion summary
+- Explicit **Leave session** confirmation that cancels the active session without adding a History entry
+- Active-time history, lifetime totals, room summaries, and a non-streak calendar
+- Installable, offline static app shell
 - Responsive, accessible controls and reduced-motion support
+
+The alarm rings only while the page is visible and the phone is unlocked. Closing or hiding the page need not ring, and an expired timer restored later is shown as finished without autoplaying stale audio.
+
+## Run and verify locally
+
+There is no package manager, framework, runtime dependency, or build step.
+
+```sh
+python3 -m http.server 4173
+```
+
+Open `http://127.0.0.1:4173/` for the app and `/tests.html` for browser checks. The deterministic Node harness uses built-in modules only:
+
+```sh
+node test-runner.mjs
+```
+
+Static production files are `index.html`, `manifest.webmanifest`, `sw.js`, and the three PNGs in `icons/`. GitHub Pages can serve them as-is.
+
+Use **Leave session** in the header to discard the current session and return Home; the confirmation explains that the step, timer, and in-progress active time are cleared and no History entry is added. Use **End this session safely** on Home or **I need to stop for today** during guided work when you want the bounded closing step and a normal History record. Clearing browser/site storage permanently removes the active session, custom rooms, and history.
 
 ## First usability test
 
@@ -46,6 +78,6 @@ Observe:
 
 Do not add accounts, AI photo analysis, inventories, or subscriptions until this core behavior is repeatably useful.
 
-## Status
+## Limits
 
-Exploratory prototype, not production software. The working title “Room to Begin” has not been cleared for trademark or domain availability.
+Room to Begin does not provide background/locked-phone timer guarantees, accounts, cross-device sync, analytics, Web Push, Home Assistant integration, or a native wrapper. The working title has not been cleared for trademark or domain availability.
